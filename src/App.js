@@ -25,6 +25,7 @@ const TEST_VID_1_FOLDER = "Jesse";
 */
 
 class MenuButton extends React.Component {
+  // TODO: Turn into a functional component?
   constructor(props) {
     super(props);
     this.state = {
@@ -118,7 +119,18 @@ class Details extends React.Component {
 
 }
 
+class Display extends React.Component {
+  // Content should pass down the photo/video to this component as a prop.
+
+}
+
 class Content extends React.Component {
+  // [Update triggers]
+  // - User navigates to a different photo/video
+  // - User switches between photo/video modes using a MenuButton
+  // - ??
+
+
   constructor(props) {
     super(props);
     this.state = {
@@ -142,11 +154,6 @@ class Content extends React.Component {
     var media = null;
     var mediaMetadata = null;
     var mediaTag = null;
-
-    // Check for bad mode
-    if (this.state.mode !== 'photos' && this.state.mode !== 'videos') {
-      this.setState({mode: 'photos'});
-    }
 
     // Setup photo
     if (this.state.mode === 'photos') {
