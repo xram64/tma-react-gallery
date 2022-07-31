@@ -4,21 +4,25 @@ graph TD
     %% Flowchart %%
     A([App])
     
-    A --> H[Header]
     A --> C[Content]
-    H --> mb(MenuButton)
-    
-    C --> DT(Details)
+
+    C --> HD(Header)
     C --> DS(Display)
+
+    HD ---> mb(MenuButton)
+    HD --> nv(Navigation)
+    HD --> dt(Details)
     
-    mb --> |Update| C
+    mb -. "setMode()" .-> C
 
 
     %% Styling %%
-    classDef helper fill:#302424,stroke:#a08282;
+    classDef root color:#fff,fill:#1d583a,stroke:#adb;
+    class A root;
+    
+    classDef helper fill:#382c2c,stroke:#a88686;
     class mb helper;
 
-    classDef root color:#999;
-    class A root;
+    linkStyle 6 stroke:#bbb,stroke-width:1px,stroke-dasharray:4,color:MediumTurquoise;
 
 ```
