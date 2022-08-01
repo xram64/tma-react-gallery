@@ -5,9 +5,9 @@ import TEST_IMG_1 from './test_content/20220712_210535.jpg';
 import TEST_VID_1 from './test_content/20220714_163909.mp4';
 
 const TEST_IMG_1_NAME = "20220712_210535.jpg";
-const TEST_IMG_1_FOLDER = "Law";
+const TEST_IMG_1_FOLDER = "TestNameA";
 const TEST_VID_1_NAME = "20220714_163909.mp4";
-const TEST_VID_1_FOLDER = "Jesse";
+const TEST_VID_1_FOLDER = "TestNameB";
 
 /*  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
  *  • Description
@@ -21,6 +21,16 @@ const TEST_VID_1_FOLDER = "Jesse";
  *    - Display
  *    - Details
  *    - Navigation
+ * 
+ *  • TODO
+ *    - Add buttons to the Navigation component
+ *    - Connect S3 bucket
+ *      · Use an S3 API call to list all files in the bucket
+ *      · Keep separate photo and video file lists, cached in the app while loaded
+ *      · Add buttons to sort list by date/time/name?
+ *      · Cycle through the active list with the Navigation buttons
+ *      · Store file and folder names for each S3 path for metadata
+ * 
  *  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
 */
 
@@ -47,14 +57,18 @@ function parseDetails(filename, foldername) {
   var minute = time.substring(2, 4);
   var second = time.substring(4, 6);
 
+  // Convert to 12-hr time
+  var ampm = hour >= 12 ? 'pm' : 'am';
+  hour = (hour == 0 | hour == 12) ? 12 : (hour % 12);
+
   // Format readable date string
   var date_fmt = month + '/' + day + '/' + year + ' ';
   // Format readable time string
-  var time_fmt = hour + ':' + minute + ':' + second;
+  var time_fmt = hour + ':' + minute + ' ' + ampm;
 
   // Capitalize credit name from foldername
   var creditName = foldername.charAt(0).toUpperCase() + foldername.slice(1);
-  var credit_fmt = "Taken by " + creditName + ".";
+  var credit_fmt = "📷 " + creditName;    // 📷 = &#x1F4F7
 
   // Return an object with the formatted details
   return { date: date_fmt, time: time_fmt, credit: credit_fmt };
@@ -117,13 +131,9 @@ function Header(props) {
         <MenuButton label="Videos" onClick={() => props.setMode('videos')} />
       </div>
 
-      <div className="header-nav">
-        <Navigation media={props.media} setMedia={props.setMedia} />
-      </div>
+      <Navigation media={props.media} setMedia={props.setMedia} />
 
-      <div className="header-details">
-        <Details mode={props.mode} media={props.media} />
-      </div>
+      <Details mode={props.mode} media={props.media} />
 
     </div>
   );
@@ -132,11 +142,46 @@ function Header(props) {
 
 function MenuButton(props) {
   return (
-    <button className="header-menu-btn" onClick={ () => { props.onClick(); } }>
+    <button type="button" name={"menubtn" + props.label} className="header-menu-btn" onClick={ () => { props.onClick(); } }>
       {props.label}
     </button>
   );
 }
+
+function NavButton(props) {
+  return (
+    <button type="button" name={"navbtn" + props.label} className="header-nav-btn" onClick={ () => { props.onClick(); } }>
+      {props.label}
+    </button>
+  );
+}
+
+
+function Navigation(props) {
+  return (
+    <div className="header-nav">
+      <NavButton label="Prev" onClick={() => props.setMedia()} />
+      <NavButton label="Next" onClick={() => props.setMedia()} />
+    </div>
+  );
+}
+
+
+function Details(props) {
+  // Content should pass down the file and folder names of the current photo/video to this component as props.
+
+    var details = parseDetails(props.media.filename, props.media.foldername);
+
+    return (
+      <div className="header-details" id={"c_" + props.mode + "_details"}>
+        <div className="header-details-date">{details.date}</div>
+        <div className="header-details-time">{details.time}</div>
+        <div className="header-details-credit">{details.credit}</div>
+      </div>
+    );
+
+}
+
 
 function Display(props) {
   // Content should pass down the photo/video to this component as a prop.
@@ -182,33 +227,6 @@ function Display(props) {
       </div>
     );
 
-}
-
-
-function Details(props) {
-  // Content should pass down the file and folder names of the current photo/video to this component as props.
-
-    var details = parseDetails(props.media.filename, props.media.foldername);
-
-    return (
-      <div className="details" id={"c_" + props.mode + "_details"}>
-        <div className="date">{details.date}</div>
-        <div className="time">{details.time}</div>
-        <div className="credit">{details.credit}</div>
-      </div>
-    );
-
-}
-
-
-function Navigation(props) {
-  // TODO: Move out nav buttons into separate component?
-
-  return (
-    <span>
-      {"← Back  |  Next →"}
-    </span>
-  );
 }
 
 
