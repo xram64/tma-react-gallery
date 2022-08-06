@@ -6,14 +6,18 @@ graph TD
     
     A --> C[Content]
 
-    C --> HD(Header)
-    C --> DS(Display)
+    C ---> HD(Header)
+    C ---> DS(Display)
 
-    HD ---> mb(MenuButton)
-    HD --> nv(Navigation)
-    HD --> dt(Details)
-    
-    mb -. "setMode()" .-> C
+    HD ----> mn_b(MenuButton)
+    HD ---> nv(Navigation)
+    HD ----> dt(Details)
+
+    nv --> nv_b(NavButton)
+
+    mn_b -. "setMode()"  ....-> C
+    nv_b -. "setMedia()" ...-> C
+
 
 
     %% Styling %%
@@ -21,8 +25,8 @@ graph TD
     class A root;
     
     classDef helper fill:#382c2c,stroke:#a88686;
-    class mb helper;
+    class mn_b,nv_b helper;
 
-    linkStyle 6 stroke:#bbb,stroke-width:1px,stroke-dasharray:4,color:MediumTurquoise;
+    linkStyle 7,8 stroke:#bbb,stroke-width:1px,stroke-dasharray:4,color:MediumTurquoise;
 
 ```

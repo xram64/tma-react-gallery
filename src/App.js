@@ -1,42 +1,101 @@
+// React
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import logo from './logo.svg';
-import TEST_IMG_1 from './test_content/20220712_210535.jpg';
-import TEST_VID_1 from './test_content/20220714_163909.mp4';
 
-const TEST_IMG_1_NAME = "20220712_210535.jpg";
-const TEST_IMG_1_FOLDER = "TestNameA";
-const TEST_VID_1_NAME = "20220714_163909.mp4";
-const TEST_VID_1_FOLDER = "TestNameB";
+// AWS
+const s3_bucketParams = { name: "tma-meetup-kushoglake-2022", region: "us-east-1" };
 
 /*  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
- *  • Description
- *    - Header with BG image and links to switch between photos/videos
- *    - Full-window photo/video view (thumbnail row along the bottom? pre-generate thumbnails for each picture?)
- *  
- *  • Page layout components
- *    - Content
- *    - Header
- *      · MenuButton
- *    - Display
- *    - Details
- *    - Navigation
- * 
+ *  • Layout
+ *    - Header with toggle for image/video modes, navigation buttons, and media detail
+ *    - Full-window image/video view
+ *
  *  • TODO
- *    - Add buttons to the Navigation component
- *    - Connect S3 bucket
- *      · Use an S3 API call to list all files in the bucket
- *      · Keep separate photo and video file lists, cached in the app while loaded
- *      · Add buttons to sort list by date/time/name?
- *      · Cycle through the active list with the Navigation buttons
- *      · Store file and folder names for each S3 path for metadata
+ *    (!) Fix video playback/controls.
+ *    (!) Format nav buttons. Add numbered nav buttons. Add 'First'/'Last' nav buttons.
+ *    (•) Add (pop-out?) list view for images/videos in bucket.
+ *    (•) Add sorting options/controls.
+ *    (?) Add a thumbnail row along the bottom (pre-generate thumbnails for each picture).
+ *    (?) Set cookie to remember last image/video position.
  * 
  *  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
 */
 
-//|————————————————————————————|//
-//|  <|| Helper functions ||>  |//
-//|————————————————————————————|//
+
+//|  ——————————————————————  |\\
+//|  |  Helper functions  |  |\\
+//|  ——————————————————————  |\\
+
+// A proper modulus function
+function mod(n, m) {
+  return ((n % m) + m) % m;
+}
+
+// Returns an incremented 'index', unless the new index exceeds a 'max' value
+function incrementWithClamp(index, max) {
+  var newIndex = index + 1;
+  if (newIndex > max) newIndex = max;
+  return newIndex;
+}
+// Returns an decremented 'index', unless the new index exceeds a 'min' value (default 0)
+function decrementWithClamp(index, min = 0) {
+  var newIndex = index - 1;
+  if (newIndex < min) newIndex = min;
+  return newIndex;
+}
+
+// Returns the Unix timestamp from a 'YYYYMMDD_HHMMSS' formatted filename
+function getUnixTimestamp(filename) {
+  var timestamp = filename.split('.')[0];
+  var date = timestamp.split('_')[0];
+  var time = timestamp.split('_')[1];
+  var year = date.substring(0, 4), month = date.substring(4, 6), day = date.substring(6, 8);
+  var hour = time.substring(0, 2), minute = time.substring(2, 4), second = time.substring(4, 6);
+  second = (second === "XX") ? "00" : second;
+  return new Date(year, month, day, hour, minute, second).getTime();
+}
+
+// Reads an XML NodeList of <Contents> elements from an S3 bucket and returns a
+//   list of {mediatype, foldername, filename, src} objects, covering all files in the bucket.
+function parseBucketFileList(contentNodes, bucketName) {
+  var contentList = [];
+
+  for (var i = 0; i < contentNodes.length; i++) {
+    var contentNode = contentNodes[i];
+
+    var size = contentNode.querySelector("Size").innerHTML;
+    //var uploadDate = contentNode.querySelector("LastModified").innerHTML;
+
+    if (size !== "0") {
+      // Folders will have Size='0', so this must be a file
+      var fullpath = contentNode.querySelector("Key").innerHTML;  // entire relative S3 path
+      var mediatype = fullpath.split("/")[0];     // main directory: 'images' or 'videos'
+      var foldername = fullpath.split("/")[1];    // contains credit name
+      var filename = fullpath.split("/")[2];      // '20220710_123456.jpg/mp4' format
+      var src = "https://" + bucketName + ".s3.amazonaws.com/" + fullpath;
+
+      contentList.push({ mediatype, foldername, filename, src });
+    }
+  }
+
+  // Default sort list: By mediatype, then date/time
+  contentList.sort((a, b) => {
+    if (a.mediatype === "images" && b.mediatype === "videos") return -1;
+    else if (a.mediatype === "videos" && b.mediatype === "images") return 1;
+    else if (a.mediatype === b.mediatype) {
+      if (getUnixTimestamp(a.filename) < getUnixTimestamp(b.filename)) return -1;
+      if (getUnixTimestamp(a.filename) > getUnixTimestamp(b.filename)) return 1;
+    }
+  });
+  var contentListImages = contentList.filter((item) => {
+    return item.mediatype === "images";
+  });
+  var contentListVideos = contentList.filter((item) => {
+    return item.mediatype === "videos";
+  });
+
+  return [contentListImages, contentListVideos];
+}
 
 // Parses the filename for date/time info and the foldername for credit info.
 function parseDetails(filename, foldername) {
@@ -56,6 +115,7 @@ function parseDetails(filename, foldername) {
   var hour = time.substring(0, 2);
   var minute = time.substring(2, 4);
   var second = time.substring(4, 6);
+  second = (second === "XX") ? "00" : second;
 
   // Convert to 12-hr time
   var ampm = hour >= 12 ? 'pm' : 'am';
@@ -75,10 +135,9 @@ function parseDetails(filename, foldername) {
 }
 
 
-//|——————————————————————|//
-//|  <|| Components ||>  |//
-//|——————————————————————|//
-
+//|  ——————————————————————  |\\
+//|  |     Components     |  |\\
+//|  ——————————————————————  |\\
 
 function Content(props) {
   // [Update triggers]
@@ -92,33 +151,118 @@ function Content(props) {
   // - Both of these events will change the state of the Content component, with new data passed down 
   //    to 'Display' and 'Details' as props.
 
-  const [mode, setMode] = useState('photos');
-  const [media, setMedia] = useState({ src: TEST_IMG_1, filename: TEST_IMG_1_NAME, foldername: TEST_IMG_1_FOLDER });  // TODO: Fix defaults
+  // These shouldn't change once the lists are filled from the S3 bucket.
+  const [imagesList, setImagesList] = useState([]);
+  const [videosList, setVideosList] = useState([]);
 
-  // TODO: Add state to keep track of last-used photo/video on mode changes and navigation?
+  const [ready, setReady] = useState(false);
+  const [mode, setMode] = useState('images');
+  const [currentMedia, setCurrentMedia] = useState({ src: null, filename: null, foldername: null });
+  const [currentIndex, setCurrentIndex] = useState({ image: -1, video: -1 });
+  const [currentSort, setCurrentSort] = useState({ type: 'default', dir: 'ascending' });
 
-  // Update the 'media' state when 'mode' is changed by a MenuButton
+  const s3_objects = useGetS3Objects(s3_bucketParams.name);  // Custom hook: Get list of S3 objects from bucket
+
+
+  //|  Initialization  |\\
+
+  // Get image/video lists from S3 bucket
   useEffect(() => {
-    if (mode === 'photos') {
-      // TODO: Set default media here??
-      setMedia({ src: TEST_IMG_1, filename: TEST_IMG_1_NAME, foldername: TEST_IMG_1_FOLDER });
+    if (s3_objects.list) {
+      var [images_list, videos_list] = parseBucketFileList(s3_objects.list, s3_bucketParams.name);
+      setImagesList(images_list);
+      setVideosList(videos_list);
     }
-    else if (mode === 'videos') {
-      // TODO: Set default media here??
-      setMedia({ src: TEST_VID_1, filename: TEST_VID_1_NAME, foldername: TEST_VID_1_FOLDER });
+  }, [s3_objects]);  // Only run when 's3_objects' changes
+
+  // Initialize defaults for each media type
+  useEffect(() => {
+    if (imagesList.length > 0 && videosList.length > 0) {  // if the file list has been loaded
+      // HACK: Assumes initial mode is 'images'
+      var defaultImage = imagesList[0];  // default to first item in sorted list
+      setCurrentMedia({ src: defaultImage.src, filename: defaultImage.filename, foldername: defaultImage.foldername });
+      setCurrentIndex({ image: 0, video: 0 });
     }
-  }, [mode]);  // Only update when 'mode' changes, ignoring changes to 'media' made by the Navigation component
+  }, [imagesList, videosList]);  // Only run when 'imagesList' or 'videoList' changes
+
+  // Set 'ready' flag once all state variables have been initialized.
+  useEffect(() => {
+    if (!ready && imagesList.length > 0 && videosList.length > 0 && currentMedia.src !== null && currentIndex.image > -1) {
+      setReady(true);
+    }
+  });
 
 
-  return (
-    <div className="content" id={"c_" + mode}>
+  //|  Rendering  |\\
 
-      <Header mode={mode} setMode={setMode} media={media} setMedia={setMedia} />
+  // Update on changes to 'currentIndex' or 'mode'
+  useEffect(() => {
 
-      <Display mode={mode} media={media} />
+    if (ready) {
+      console.log("[DEBUG] currentMedia.src: " + currentMedia.src + " | currentIndex.image: " + currentIndex.image + " | currentIndex.video: " + currentIndex.video);  // TEST
 
-    </div>
-  );
+      if (mode === 'images') {
+        setCurrentMedia({
+          src: imagesList[currentIndex.image].src,
+          filename: imagesList[currentIndex.image].filename,
+          foldername: imagesList[currentIndex.image].foldername
+        });
+      }
+
+      else if (mode === 'videos') {
+        setCurrentMedia({
+          src: videosList[currentIndex.video].src,
+          filename: videosList[currentIndex.video].filename,
+          foldername: videosList[currentIndex.video].foldername
+        });
+      }
+
+    }
+  }, [currentIndex, mode]);
+
+
+
+  // If the list is ready
+  if (ready) {
+    var mediaDetails = parseDetails(currentMedia.filename, currentMedia.foldername);
+
+    return (
+      <div className="content" id={"c_" + mode}>
+
+        <Header
+          mode={mode}
+          setMode={setMode}
+          imagesListLength={imagesList.length}
+          videosListLength={videosList.length}
+          currentMedia={currentMedia}
+          setCurrentMedia={setCurrentMedia}
+          currentIndex={currentIndex}
+          setCurrentIndex={setCurrentIndex}
+          mediaDetails={mediaDetails}
+        />
+
+        <Display mode={mode} currentMedia={currentMedia} mediaDetails={mediaDetails} />
+
+      </div>
+    );
+  }
+
+  // If the list is not ready
+  else {
+    return (
+      <div className="content-loading">
+        <div className="content-loading-text">
+          Loading...
+        </div>
+
+        {s3_objects.error &&
+          <div className='content-error-text'>
+            {"Error: " + s3_objects.error};
+          </div>
+        }
+      </div>
+    );
+  }
 }
 
 
@@ -127,32 +271,29 @@ function Header(props) {
     <div className="header">
 
       <div className="header-menu">
-        <MenuButton label="Photos" onClick={() => props.setMode('photos')} />
+        <MenuButton label="Photos" onClick={() => props.setMode('images')} />
         <MenuButton label="Videos" onClick={() => props.setMode('videos')} />
       </div>
 
-      <Navigation media={props.media} setMedia={props.setMedia} />
+      <Navigation
+        mode={props.mode}
+        imagesListLength={props.imagesListLength}
+        videosListLength={props.imagesListLength}
+        currentIndex={props.currentIndex}
+        setCurrentIndex={props.setCurrentIndex}
+      />
 
-      <Details mode={props.mode} media={props.media} />
+      <Details mode={props.mode} currentMedia={props.currentMedia} mediaDetails={props.mediaDetails} />
 
     </div>
   );
 }
 
-
 function MenuButton(props) {
   return (
-    <button type="button" name={"menubtn" + props.label} className="header-menu-btn" onClick={ () => { props.onClick(); } }>
+    <a className="header-menu-btn" name={"menubtn" + props.label} onClick={() => { props.onClick(); }}>
       {props.label}
-    </button>
-  );
-}
-
-function NavButton(props) {
-  return (
-    <button type="button" name={"navbtn" + props.label} className="header-nav-btn" onClick={ () => { props.onClick(); } }>
-      {props.label}
-    </button>
+    </a>
   );
 }
 
@@ -160,77 +301,116 @@ function NavButton(props) {
 function Navigation(props) {
   return (
     <div className="header-nav">
-      <NavButton label="Prev" onClick={() => props.setMedia()} />
-      <NavButton label="Next" onClick={() => props.setMedia()} />
+      <NavButton label="Prev" onClick={() => {
+        if (props.mode === 'images') {
+          props.setCurrentIndex({ image: decrementWithClamp(props.currentIndex.image, 0), video: props.currentIndex.video });
+        }
+        else if (props.mode === 'videos') {
+          props.setCurrentIndex({ video: decrementWithClamp(props.currentIndex.video, 0), image: props.currentIndex.image });
+        }
+      }} />
+
+      <NavButton label="Next" onClick={() => {
+        if (props.mode === 'images') {
+          props.setCurrentIndex({ image: incrementWithClamp(props.currentIndex.image, props.imagesListLength - 1), video: props.currentIndex.video });
+        }
+        else if (props.mode === 'videos') {
+          props.setCurrentIndex({ video: incrementWithClamp(props.currentIndex.video, props.videosListLength - 1), image: props.currentIndex.image });
+        }
+      }} />
     </div>
+  );
+}
+
+function NavButton(props) {
+  return (
+    <a className="header-nav-btn" name={"navbtn" + props.label} onClick={() => { props.onClick(); }}>
+      {props.label}
+    </a>
   );
 }
 
 
 function Details(props) {
-  // Content should pass down the file and folder names of the current photo/video to this component as props.
-
-    var details = parseDetails(props.media.filename, props.media.foldername);
-
-    return (
-      <div className="header-details" id={"c_" + props.mode + "_details"}>
-        <div className="header-details-date">{details.date}</div>
-        <div className="header-details-time">{details.time}</div>
-        <div className="header-details-credit">{details.credit}</div>
-      </div>
-    );
-
+  return (
+    <div className="header-details" id={"c_" + props.mode + "_details"}>
+      <div className="header-details-date">{props.mediaDetails.date}</div>
+      <div className="header-details-time">{props.mediaDetails.time}</div>
+      <div className="header-details-credit">{props.mediaDetails.credit}</div>
+    </div>
+  );
 }
 
 
 function Display(props) {
   // Content should pass down the photo/video to this component as a prop.
 
-    var mediaTag = null;
+  var mediaTag = null;
 
-    // Setup photo
-    if (props.mode === 'photos') {
-      // TODO: Implement null checking for currentPhoto
-      // TODO: Set default if no photo is selected?
+  // Setup photo
+  if (props.mode === 'images') {
+    mediaTag = <img
+      src={props.currentMedia.src}
+      className="display-media"
+      id="md_photo"
+      data-filename={props.currentMedia.filename}
+      data-foldername={props.currentMedia.foldername}
+      data-date={props.mediaDetails.date}
+      data-time={props.mediaDetails.time}
+      data-credit={props.mediaDetails.credit}
+      alt=""
+      href={props.currentMedia.src}
+      target="_blank"
+    />;
+  }
 
-      mediaTag = <img
-        src={props.media.src}
-        className="media"
-        id="md_photo"
-        data-filename={props.media.filename}
-        data-foldername={props.media.foldername}
-        alt={"" /* TODO: Bring parsed info from Details component into here? */}
-      />;
-    }
+  // Setup video
+  else if (props.mode === 'videos') {
+    mediaTag = <video
+      src={props.currentMedia.src}
+      className="display-media"
+      id="md_video"
+      data-filename={props.currentMedia.filename}
+      data-foldername={props.currentMedia.foldername}
+      data-date={props.mediaDetails.date}
+      data-time={props.mediaDetails.time}
+      data-credit={props.mediaDetails.credit}
+      alt=""
+    />;
+  }
 
-    // Setup video
-    else if (props.mode === 'videos') {
-      // TODO: Implement null checking for currentVideo
-      // TODO: Set default if no video is selected?
-
-      // TODO: (!!!!) Fix video playback/controls. Fix CSS sizing to fit content in window.
-
-
-      mediaTag = <video
-        src={props.media.src}
-        className="media"
-        id="md_video"
-        data-filename={props.media.filename}
-        data-foldername={props.media.foldername}
-        alt={"" /* TODO: Bring parsed info from Details component into here? */}
-      />;
-    }
-
-    return (
-      <div className="display" id={"c_" + props.mode + "_display"}>
+  return (
+    <div className="display" id={"c_" + props.mode + "_display"}>
+      <a className="display-link" href={props.currentMedia.src} target="_blank">
         {mediaTag}
-      </div>
-    );
+      </a>
+    </div>
+  );
 
 }
 
+//// Custom Hooks ////
+function useGetS3Objects(bucketName) {
+  const [objects, setObjects] = useState({
+    list: [],
+    error: false,
+  });
 
-// Root app component
+  useEffect(() => {
+    // List objects in S3 bucket
+    // Returns a NodeList of <Contents> elements, each containing a file path or a folder path (with size 0)
+    fetch("https://" + bucketName + ".s3.amazonaws.com/")
+      .then((response) => response.text())
+      .then((xml) => new window.DOMParser().parseFromString(xml, "text/xml"))
+      .then((data) => { setObjects({ list: data.querySelectorAll("Contents"), error: false }); console.log("DEBUG: API fetch @ " + Date.now()); })
+      .catch(error => setObjects({ list: [], error: error }));
+  }, []);  // run once (never re-render)
+
+  return objects;
+}
+
+
+//// Root Component ////
 function App() {
   return (
     <div className="App">
