@@ -10,10 +10,11 @@ on:
     branches: [ master ]
   workflow_dispatch:
 
-# Set or override environment variables for the runner
+# Env vars will be substituted into commands by the runner (Ubuntu defaults to bash)
 env:
   # Disabling 'CI' to prevent build failures: "Treating warnings as errors because process.env.CI = true"
   CI: false
+  S3_BUCKET_NAME: ${{ secrets.S3_BUCKET }}
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -32,12 +33,9 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-        # Env vars will be substituted into commands by the runner (Ubuntu defaults to bash)
-        env:
-          s3_bucket_name: ${{ secrets.S3_BUCKET }}
       # Installs the node packages and runs the 'build' in the package.json file, 
       #  which creates a buildfolder in the root directory
       - name: Build React App
         run: npm install && npm run build
       - name: Deploy app build to S3 bucket
-        run: aws s3 sync ./build/ s3://$s3_bucket_name --delete
+        run: aws s3 sync ./build/ s3://$S3_BUCKET_NAME --delete
