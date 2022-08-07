@@ -412,18 +412,26 @@ function MenuButton(props) {
 }
 
 function Navigation(props) {
-  const [windowLength, setWindowLength] = useState(5);
+  const [navButtonCount, setNavButtonCount] = useState(5);
 
-  // One-shot effect to set up adjustments to window length based on viewport width.
+  // One-shot effects to set up adjustments to window length based on viewport width.
   // [Ref: https://blog.bitsrc.io/using-react-hooks-to-recognize-respond-to-current-viewport-size-c385009005c0]
-  useEffect(() => {
+  useEffect(() => {  // set initial 'navButtonCount'
+    if (window.innerWidth < 480)
+        setNavButtonCount(1);
+      else if (window.innerWidth < 768)
+        setNavButtonCount(3);
+      else
+        setNavButtonCount(5);
+  }, []);
+  useEffect(() => {  // adjust 'navButtonCount' on window resize
     const onResize = () => {
       if (window.innerWidth < 480)
-        setWindowLength(1);
+        setNavButtonCount(1);
       else if (window.innerWidth < 768)
-        setWindowLength(3);
+        setNavButtonCount(3);
       else
-        setWindowLength(5);
+        setNavButtonCount(5);
     };
     window.addEventListener('resize', onResize);  // set event listener for window size changes
     return () => { window.removeEventListener('resize', onResize); }  // clean up
@@ -468,7 +476,7 @@ function Navigation(props) {
       }} />
 
       {/*  Numbered buttons  */}
-      {centeredIndexSequence(center, windowLength, 0, maxIndex).map((i) =>
+      {centeredIndexSequence(center, navButtonCount, 0, maxIndex).map((i) =>
         <NavButton key={i.toString()} label={(i + 1).toString()} desc={"item-" + (i + 1).toString()} cls={(i == center) ? "number active" : "number"} onClick={() => {
           if (props.mode === 'images')
             props.setCurrentIndex({ image: i, video: props.currentIndex.video });
