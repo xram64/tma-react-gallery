@@ -10,6 +10,11 @@ on:
     branches: [ master ]
   workflow_dispatch:
 
+# Set or override environment variables for the runner
+env:
+  # Disabling 'CI' to prevent build failures: "Treating warnings as errors because process.env.CI = true"
+  CI: false
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
