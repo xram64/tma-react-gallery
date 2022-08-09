@@ -185,7 +185,7 @@ function Content(props) {
   const [mode, setMode] = useState('images');
   const [currentMedia, setCurrentMedia] = useState({ src: null, filename: null, foldername: null });
   const [currentIndex, setCurrentIndex] = useState({ image: -1, video: -1 });
-  const [currentSort, setCurrentSort] = useState({ type: 'default', dir: 'ascending' });
+  // const [currentSort, setCurrentSort] = useState({ type: 'default', dir: 'ascending' });
 
   const s3_objects = useGetS3Objects(s3_bucketParams.name);  // Custom hook: Get list of S3 objects from bucket
 
@@ -296,6 +296,8 @@ function Content(props) {
           case "m":
             setMode((mode === 'images') ? 'videos' : 'images');
             break;
+          default:
+            break;
         }
 
         // Update media
@@ -304,7 +306,7 @@ function Content(props) {
         else if (mode === 'videos')
           setCurrentIndex({ image: currentIndex.image, video: n_index });
       } 
-    }, [currentIndex, setCurrentIndex, mode, ready]
+    }, [currentIndex, setCurrentIndex, imagesList, videosList, mode, ready]
   );
   // Add event listener for the arrow key event handler, using our custom hook
   useEventListener("keydown", navKeyHandler);
