@@ -1,0 +1,41 @@
+# Ref:  https://blog.devgenius.io/deploy-a-react-app-to-amazon-s3-using-github-actions-and-bitbucket-pipelines-74791ae10a7c
+
+name: s3-react-app-deploy
+
+# Controls when the workflow will run
+on:
+  # 'push' triggers the workflow on push request events for the master branch
+  # 'workflow_dispatch' enables Action to be run manually
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+# Env vars will be substituted into commands by the runner (Ubuntu defaults to bash)
+env:
+  # Disabling 'CI' to prevent build failures: "Treating warnings as errors because process.env.CI = true"
+  CI: false
+  S3_BUCKET_NAME: ${{ secrets.S3_BUCKET }}
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      # Installs the node packages and runs the 'build' in the package.json file, 
+      #  which creates a buildfolder in the root directory
+      - name: Build React App
+        run: npm install && npm run build
+      - name: Deploy app build to S3 bucket
+        run: aws s3 sync ./build/ s3://$S3_BUCKET_NAME --delete
