@@ -31,7 +31,6 @@ const s3_bucketParams = { name: "tma-meetup-kushoglake-2022", region: "us-east-1
 function mod(n, m) {
   return ((n % m) + m) % m;
 }
-
 // Returns an incremented 'index', unless the new index exceeds a 'max' value.
 function incrementWithClamp(index, max) {
   var newIndex = index + 1;
@@ -44,7 +43,6 @@ function decrementWithClamp(index, min = 0) {
   if (newIndex < min) newIndex = min;
   return newIndex;
 }
-
 // Returns a sequence of integers of a given 'length' around a 'center' index.
 // Odd 'length' sequences will have an equal number of indices on both sides of the 'center'.
 // Even 'length' sequences will have one extra number to the right of the 'center'.
@@ -56,12 +54,12 @@ function centeredIndexSequence(center, length, minIndex = 0, maxIndex = Number.P
 
   // If the provided 'length' is larger than the 'indexRange', the full [minIndex, maxIndex] index list will be returned.
   if (length > indexRange) {
-    for (var i = minIndex; i <= maxIndex; i++) { seq.push(i); }
+    for (let i = minIndex; i <= maxIndex; i++) { seq.push(i); }
     return seq;
   }
 
   // Generate sequence (may include out-of-bounds indices)
-  for (var i = start; i <= end; i++) { seq.push(i); }
+  for (let i = start; i <= end; i++) { seq.push(i); }
 
   // If the centered sequence would cross the [minIndex, maxIndex] boundary, it will be shifted to fit.
   if (seq[0] < minIndex) { seq = seq.map((idx) => idx + (minIndex - seq[0])) }
@@ -69,7 +67,6 @@ function centeredIndexSequence(center, length, minIndex = 0, maxIndex = Number.P
 
   return seq;
 }
-
 // Returns the Unix timestamp from a 'YYYYMMDD_HHMMSS' formatted filename
 function getUnixTimestamp(filename) {
   var timestamp = filename.split('.')[0];
@@ -80,7 +77,6 @@ function getUnixTimestamp(filename) {
   second = (second === "XX") ? "00" : second;
   return new Date(year, month, day, hour, minute, second).getTime();
 }
-
 // Reads an XML NodeList of <Contents> elements from an S3 bucket and returns a
 //  list of {mediatype, foldername, filename, src} objects, covering all files in the bucket.
 function parseBucketFileList(contentNodes, bucketName) {
@@ -112,6 +108,7 @@ function parseBucketFileList(contentNodes, bucketName) {
       if (getUnixTimestamp(a.filename) < getUnixTimestamp(b.filename)) return -1;
       if (getUnixTimestamp(a.filename) > getUnixTimestamp(b.filename)) return 1;
     }
+    return 0;
   });
   var contentListImages = contentList.filter((item) => {
     return item.mediatype === "images";
@@ -122,7 +119,6 @@ function parseBucketFileList(contentNodes, bucketName) {
 
   return [contentListImages, contentListVideos];
 }
-
 // Parses the filename for date/time info and the foldername for credit info.
 function parseDetails(filename, foldername) {
   // Split timestamp label and file type
@@ -305,11 +301,38 @@ function Content(props) {
           setCurrentIndex({ image: n_index, video: currentIndex.video });
         else if (mode === 'videos')
           setCurrentIndex({ image: currentIndex.image, video: n_index });
-      } 
+      }
     }, [currentIndex, setCurrentIndex, imagesList, videosList, mode, ready]
   );
   // Add event listener for the arrow key event handler, using our custom hook
   useEventListener("keydown", navKeyHandler);
+
+  // Callback for the 'useHorizonalSwipeHandler' custom hook to update the current media index on a valid swipe
+  const navSwipeHandler = useCallback(
+    (change_to_index) => {
+      if (ready) {
+        let n_index = (mode === 'images') ? currentIndex.image : currentIndex.video;
+        let n_maxindex = (mode === 'images') ? imagesList.length - 1 : videosList.length - 1;
+
+        if (!change_to_index) return;  // if no index change is provided, do nothing
+
+        // Update index in direction of swipe
+        n_index += change_to_index;  // +1 (forward) or -1 (back)
+
+        if (n_index < 0 || n_index > n_maxindex) return;  // if new index is out of bounds, do nothing
+        else {
+          // Update media
+          if (mode === 'images')
+            setCurrentIndex({ image: n_index, video: currentIndex.video });
+          else if (mode === 'videos')
+            setCurrentIndex({ image: currentIndex.image, video: n_index });
+          return;
+        }
+      }
+    }, [currentIndex, setCurrentIndex, imagesList, videosList, mode, ready]
+  );
+  // Add event listeners for the swipe event handler, through our custom hook
+  useHorizonalSwipeNav(navSwipeHandler);
 
 
   /// [Content — Rendering] ///
@@ -420,11 +443,11 @@ function Navigation(props) {
   // [Ref: https://blog.bitsrc.io/using-react-hooks-to-recognize-respond-to-current-viewport-size-c385009005c0]
   useEffect(() => {  // set initial 'navButtonCount'
     if (window.innerWidth < 480)
-        setNavButtonCount(1);
-      else if (window.innerWidth < 768)
-        setNavButtonCount(3);
-      else
-        setNavButtonCount(5);
+      setNavButtonCount(1);
+    else if (window.innerWidth < 768)
+      setNavButtonCount(3);
+    else
+      setNavButtonCount(5);
   }, []);
   useEffect(() => {  // adjust 'navButtonCount' on window resize
     const onResize = () => {
@@ -621,6 +644,66 @@ function useEventListener(eventName, handler, element = window) {
     },
     [eventName, element]  // Re-run if eventName or element changes.
   );
+}
+
+// Touch interface horizontal swipe functionality
+//  [Adapted from https://stackoverflow.com/questions/2264072/detect-a-finger-swipe-through-javascript-on-the-iphone-and-android]
+// TODO: Use React Native to do this instead?
+function useHorizonalSwipeNav(updateIndex, minChangeX = 60, maxChangeY = 120) {
+  // Variables to hold the start and end coords for each axis
+  const [touchCoords, setTouchCoords] = useState({
+    startX: null,
+    startY: null,
+  });
+
+  // Handler callbacks for the touchstart and touchend events
+  const touchStartHandler = useCallback(
+    (e) => {
+      setTouchCoords({ startX: e.changedTouches[0].screenX, startY: e.changedTouches[0].screenY })
+    }, []
+  );
+  const touchEndHandler = useCallback(
+    (e) => {
+      if (!touchCoords.startX || !touchCoords.startY) {
+        console.log("[DEBUG]: Attempted to handle a swipe with 'null' touch coords.");
+        return;
+      }
+
+      // Get current state of touch coords (at 'touchend')
+      let endX = e.changedTouches[0].screenX, endY = e.changedTouches[0].screenY;
+
+      // Check that the swipe didn't go past the vertical tolerance (maxChangeY)
+      // HACK: Should check that the y-coords never go outside of tolerance during the swipe, not just at endpoints?
+      if (Math.abs(endY - touchCoords.startY) > maxChangeY)
+        console.log("[DEBUG]: Checked for swipe -> No swipe (too far on y-axis).");
+
+      // 👈 Swiped left? 👈
+      else if (endX < (touchCoords.startX - minChangeX)) {
+        console.log("[DEBUG]: Checked for swipe -> Left swipe (navigating forward).");
+        // Swipe left = Move right
+        updateIndex(1);
+      }
+
+      // 👉 Swiped right? 👉
+      else if (endX > (touchCoords.startX + minChangeX)) {
+        console.log("[DEBUG]: Checked for swipe -> Right swipe (navigating backward).");
+        // Swipe right = Move left
+        updateIndex(-1);
+      }
+
+      // ✖ No swipe ✖
+      else {
+        console.log("[DEBUG]: Checked for swipe -> No swipe (not far enough on x-axis).");
+      }
+
+      // Reset starting touch coords
+      setTouchCoords({ startX: null, startY: null });
+    }, [touchCoords, updateIndex, minChangeX, maxChangeY]
+  );
+
+  // Attach touch event listeners to the document
+  useEventListener('touchstart', touchStartHandler, document);
+  useEventListener('touchend', touchEndHandler, document);
 }
 
 
