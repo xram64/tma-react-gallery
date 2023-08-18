@@ -3,7 +3,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
 // AWS //
-const s3_bucketParams = { name: "tma-meetup-kushoglake-2022", region: "us-east-1" };
+const s3_bucketParams_kushoglake2022 = { name: "tma-meetup-kushoglake-2022", region: "us-east-1" };
+const s3_bucketParams_buckhouse2023 = { name: "tma-meetup-buckhouse-2023", region: "us-east-1" };
 
 /*  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
  *  • Layout
@@ -91,12 +92,16 @@ function parseBucketFileList(contentNodes, bucketName) {
     if (size !== "0") {
       // Folders will have Size='0', so this must be a file
       var fullpath = contentNode.querySelector("Key").innerHTML;  // entire relative S3 path
-      var mediatype = fullpath.split("/")[0];     // main directory: 'images' or 'videos'
-      var foldername = fullpath.split("/")[1];    // contains credit name
-      var filename = fullpath.split("/")[2];      // '20220710_123456.jpg/mp4' format
+      var mediatype = fullpath.split("/")[0];                     // main directory: 'images' or 'videos'
+      // *** DEPRECATED 8/17/23 ***  var foldername = fullpath.split("/")[1];    // contains credit name
+      var filename  = fullpath.split("/")[1];                      // '20220710_123456_CREDITNAME.jpg/mp4' format
+      var datestamp = filename.split(".")[0].split("_")[0];
+      var timestamp = filename.split(".")[0].split("_")[1];
+      var credit    = filename.split(".")[0].split("_")[2];
       var src = "https://" + bucketName + ".s3.amazonaws.com/" + fullpath;
 
-      contentList.push({ mediatype, foldername, filename, src });
+      contentList.push({ mediatype, datetime, credit, src });
+      // contentList.push({ mediatype, foldername, filename, src });
     }
   }
 
