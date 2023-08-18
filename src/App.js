@@ -3,8 +3,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
 // AWS //
-const s3_bucketParams_kushoglake2022 = { name: "tma-meetup-kushoglake-2022", region: "us-east-1" };
+const s3_bucketParams = { name: "tma-meetup-kushoglake-2022", region: "us-east-1" };
 const s3_bucketParams_buckhouse2023 = { name: "tma-meetup-buckhouse-2023", region: "us-east-1" };
+// TODO: (^) Turn these into a single object or list of objects, from which a bucket can be selected (add an ID field?)
 
 /*  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
  *  • Layout
@@ -68,18 +69,15 @@ function centeredIndexSequence(center, length, minIndex = 0, maxIndex = Number.P
 
   return seq;
 }
-// Returns the Unix timestamp from a 'YYYYMMDD_HHMMSS' formatted filename
-function getUnixTimestamp(filename) {
-  var timestamp = filename.split('.')[0];
-  var date = timestamp.split('_')[0];
-  var time = timestamp.split('_')[1];
-  var year = date.substring(0, 4), month = date.substring(4, 6), day = date.substring(6, 8);
-  var hour = time.substring(0, 2), minute = time.substring(2, 4), second = time.substring(4, 6);
+// Returns the Unix timestamp from `YYYYMMDD` datestamp and a `HHMMSS` timestamp.
+function getUnixTimestamp(datestamp, timestamp) {
+  var year = datestamp.substring(0, 4), month = datestamp.substring(4, 6), day = datestamp.substring(6, 8);
+  var hour = timestamp.substring(0, 2), minute = timestamp.substring(2, 4), second = timestamp.substring(4, 6);
   second = (second === "XX") ? "00" : second;
   return new Date(year, month, day, hour, minute, second).getTime();
 }
-// Reads an XML NodeList of <Contents> elements from an S3 bucket and returns a
-//  list of {mediatype, foldername, filename, src} objects, covering all files in the bucket.
+// Reads an XML NodeList of <Contents> elements from an S3 bucket and returns a list of
+//  {mediatype, filename, datestamp, timestamp, credit, src} objects, covering all files in the bucket.
 function parseBucketFileList(contentNodes, bucketName) {
   var contentList = [];
 
@@ -89,29 +87,28 @@ function parseBucketFileList(contentNodes, bucketName) {
     var size = contentNode.querySelector("Size").innerHTML;
     //var uploadDate = contentNode.querySelector("LastModified").innerHTML;
 
-    if (size !== "0") {
-      // Folders will have Size='0', so this must be a file
+    if (size !== "0") {  // Folders will have Size='0', so this must be a file
       var fullpath = contentNode.querySelector("Key").innerHTML;  // entire relative S3 path
-      var mediatype = fullpath.split("/")[0];                     // main directory: 'images' or 'videos'
-      // *** DEPRECATED 8/17/23 ***  var foldername = fullpath.split("/")[1];    // contains credit name
-      var filename  = fullpath.split("/")[1];                      // '20220710_123456_CREDITNAME.jpg/mp4' format
-      var datestamp = filename.split(".")[0].split("_")[0];
-      var timestamp = filename.split(".")[0].split("_")[1];
-      var credit    = filename.split(".")[0].split("_")[2];
+      var mediatype = fullpath.split("/")[0];                     // main directory: `images` or `videos`
+      var filename  = fullpath.split("/")[1];                     // format: `20220710_123456_CREDITNAME.jpg/mp4`
+
+      var datestamp = filename.split(".")[0].split("_")[0];       // `20220710`
+      var timestamp = filename.split(".")[0].split("_")[1];       // `123456`
+      var credit    = filename.split(".")[0].split("_")[2];       // `CREDITNAME`
+
       var src = "https://" + bucketName + ".s3.amazonaws.com/" + fullpath;
 
-      contentList.push({ mediatype, datetime, credit, src });
-      // contentList.push({ mediatype, foldername, filename, src });
+      contentList.push({ mediatype, filename, datestamp, timestamp, credit, src });
     }
   }
 
-  // Default sort list: By mediatype, then date/time
+  // Default sort list: By mediatype, then date/time.
   contentList.sort((a, b) => {
     if (a.mediatype === "images" && b.mediatype === "videos") return -1;
     else if (a.mediatype === "videos" && b.mediatype === "images") return 1;
     else if (a.mediatype === b.mediatype) {
-      if (getUnixTimestamp(a.filename) < getUnixTimestamp(b.filename)) return -1;
-      if (getUnixTimestamp(a.filename) > getUnixTimestamp(b.filename)) return 1;
+      if (getUnixTimestamp(a.datestamp, a.timestamp) < getUnixTimestamp(b.datestamp, b.timestamp)) return -1;
+      if (getUnixTimestamp(a.datestamp, a.timestamp) > getUnixTimestamp(b.datestamp, b.timestamp)) return 1;
     }
     return 0;
   });
@@ -124,24 +121,17 @@ function parseBucketFileList(contentNodes, bucketName) {
 
   return [contentListImages, contentListVideos];
 }
-// Parses the filename for date/time info and the foldername for credit info.
-function parseDetails(filename, foldername) {
-  // Split timestamp label and file type
-  var label = filename.split('.')[0];   // YYYYMMDD_HHMMSS
-  var type = filename.split('.')[1];    // jpg|mp4
+// Parses the filename for full date/time info and the credit name.
+function parseDetails(datestamp, timestamp, credit) {
+  // Break datestamp into components
+  var year = datestamp.substring(0, 4);
+  var month = datestamp.substring(4, 6);
+  var day = datestamp.substring(6, 8);
 
-  // Get date/time info from filename label (e.g. 20220711_134520)
-  var date = label.split('_')[0];
-  var time = label.split('_')[1];
-
-  // Break date/time info into components
-  var year = date.substring(0, 4);
-  var month = date.substring(4, 6);
-  var day = date.substring(6, 8);
-
-  var hour = time.substring(0, 2);
-  var minute = time.substring(2, 4);
-  var second = time.substring(4, 6);
+  // Break timestamp into components
+  var hour = timestamp.substring(0, 2);
+  var minute = timestamp.substring(2, 4);
+  var second = timestamp.substring(4, 6);
   second = (second === "XX") ? "00" : second;
 
   // Convert to 12-hr time
@@ -153,8 +143,8 @@ function parseDetails(filename, foldername) {
   // Format readable time string
   var time_fmt = hour + ':' + minute + ' ' + ampm;
 
-  // Capitalize credit name from foldername
-  var creditName = foldername.charAt(0).toUpperCase() + foldername.slice(1);
+  // Capitalize credit name from `credit` (if needed)
+  var creditName = credit.charAt(0).toUpperCase() + credit.slice(1);
   var credit_fmt = "📷 " + creditName;    // 📷 = &#x1F4F7
 
   // Return an object with the formatted details
@@ -184,10 +174,14 @@ function Content(props) {
 
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState('images');
-  const [currentMedia, setCurrentMedia] = useState({ src: null, filename: null, foldername: null });
+  const [currentMedia, setCurrentMedia] = useState({ src: null, filename: null, datestamp: null, timestamp: null, credit: null });
   const [currentIndex, setCurrentIndex] = useState({ image: -1, video: -1 });
   // const [currentSort, setCurrentSort] = useState({ type: 'default', dir: 'ascending' });
 
+
+  // TODO: (^) Add a new state variable `currentBucket` to keep track of the loaded gallery page, and store the bucket's name/region object.
+  
+  // TODO: (v) Choose bucket based on the current gallery page (or requested gallery?) and load that bucket.
   const s3_objects = useGetS3Objects(s3_bucketParams.name);  // Custom hook: Get list of S3 objects from bucket
 
 
@@ -220,7 +214,13 @@ function Content(props) {
 
           // For a valid mode and index, set the defaults accordingly
           let h_media = (h_mode === 'images' ? imagesList[h_index] : videosList[h_index]);
-          setCurrentMedia({ src: h_media.src, filename: h_media.filename, foldername: h_media.foldername });
+          setCurrentMedia({
+            src: h_media.src,
+            filename: h_media.filename,
+            datestamp: h_media.datestamp,
+            timestamp: h_media.timestamp,
+            credit: h_media.credit
+          });
           if (h_mode === 'images') {
             setMode('images');
             setCurrentIndex({ image: h_index, video: 0 });
@@ -233,7 +233,13 @@ function Content(props) {
         catch (err) {
           console.log("[ERROR] " + err);
           // Fallback to defaults if URL fragment is malformed  // DRY
-          setCurrentMedia({ src: imagesList[0].src, filename: imagesList[0].filename, foldername: imagesList[0].foldername });
+          setCurrentMedia({
+            src: imagesList[0].src,
+            filename: imagesList[0].filename,
+            datestamp: imagesList[0].datestamp,
+            timestamp: imagesList[0].timestamp,
+            credit: imagesList[0].credit
+          });
           setCurrentIndex({ image: 0, video: 0 });
           // Clear the URL fragment (leaves the #)
           window.location.hash = '';
@@ -241,7 +247,13 @@ function Content(props) {
       }
       else {
         // Defaults (if no URL fragment is provided)  // DRY
-        setCurrentMedia({ src: imagesList[0].src, filename: imagesList[0].filename, foldername: imagesList[0].foldername });
+        setCurrentMedia({
+          src: imagesList[0].src,
+          filename: imagesList[0].filename,
+          datestamp: imagesList[0].datestamp,
+          timestamp: imagesList[0].timestamp,
+          credit: imagesList[0].credit
+        });
         setCurrentIndex({ image: 0, video: 0 });
       }
     }
@@ -351,7 +363,9 @@ function Content(props) {
         setCurrentMedia({
           src: imagesList[currentIndex.image].src,
           filename: imagesList[currentIndex.image].filename,
-          foldername: imagesList[currentIndex.image].foldername
+          datestamp: imagesList[currentIndex.image].datestamp,
+          timestamp: imagesList[currentIndex.image].timestamp,
+          credit: imagesList[currentIndex.image].credit
         });
       }
 
@@ -359,7 +373,9 @@ function Content(props) {
         setCurrentMedia({
           src: videosList[currentIndex.video].src,
           filename: videosList[currentIndex.video].filename,
-          foldername: videosList[currentIndex.video].foldername
+          datestamp: videosList[currentIndex.video].datestamp,
+          timestamp: videosList[currentIndex.video].timestamp,
+          credit: videosList[currentIndex.video].credit
         });
       }
     }
@@ -368,7 +384,8 @@ function Content(props) {
 
   // If the list is ready
   if (ready) {
-    var mediaDetails = parseDetails(currentMedia.filename, currentMedia.foldername);
+    // Convert raw filename values for `datestamp`, `timestamp`, and `credit` into formatted strings for display.
+    var mediaDetails = parseDetails(currentMedia.datestamp, currentMedia.timestamp, currentMedia.credit);
 
     return (
       <div className="content" id={"c_" + mode}>
@@ -567,7 +584,6 @@ function Display(props) {
       className="display-media"
       id="md_photo"
       data-filename={props.currentMedia.filename}
-      data-foldername={props.currentMedia.foldername}
       data-date={props.mediaDetails.date}
       data-time={props.mediaDetails.time}
       data-credit={props.mediaDetails.credit}
@@ -583,7 +599,6 @@ function Display(props) {
       className="display-media"
       id="md_video"
       data-filename={props.currentMedia.filename}
-      data-foldername={props.currentMedia.foldername}
       data-date={props.mediaDetails.date}
       data-time={props.mediaDetails.time}
       data-credit={props.mediaDetails.credit}
