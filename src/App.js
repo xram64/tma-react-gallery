@@ -3,9 +3,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
 // AWS //
-const s3_bucketParams = { name: "tma-meetup-kushoglake-2022", region: "us-east-1" };
-const s3_bucketParams_buckhouse2023 = { name: "tma-meetup-buckhouse-2023", region: "us-east-1" };
-// TODO: (^) Turn these into a single object or list of objects, from which a bucket can be selected (add an ID field?)
+const s3_bucketParams = [
+  { ref: "2022a", name: "tma-meetup-kushoglake-2022", region: "us-east-1" },
+  { ref: "2023a", name: "tma-meetup-buckhouse-2023", region: "us-east-1" },
+];
 
 /*  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
  *  • Layout
@@ -168,21 +169,19 @@ function Content(props) {
   // - Both of these events will change the state of the Content component, with new data passed down 
   //    to 'Display' and 'Details' as props.
 
-  // These shouldn't change once the lists are filled from the S3 bucket.
+  // These will only change when the gallery is changed and a new S3 bucket is loaded.
   const [imagesList, setImagesList] = useState([]);
   const [videosList, setVideosList] = useState([]);
 
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState('images');
+  const [currentBucket, setCurrentBucket] = useState({ ref: null, name: null, region: null });
   const [currentMedia, setCurrentMedia] = useState({ src: null, filename: null, datestamp: null, timestamp: null, credit: null });
   const [currentIndex, setCurrentIndex] = useState({ image: -1, video: -1 });
   // const [currentSort, setCurrentSort] = useState({ type: 'default', dir: 'ascending' });
-
-
-  // TODO: (^) Add a new state variable `currentBucket` to keep track of the loaded gallery page, and store the bucket's name/region object.
   
   // TODO: (v) Choose bucket based on the current gallery page (or requested gallery?) and load that bucket.
-  const s3_objects = useGetS3Objects(s3_bucketParams.name);  // Custom hook: Get list of S3 objects from bucket
+  const s3_objects = useGetS3Objects(s3_bucketParams[0].name);  // Custom hook: Get list of S3 objects from bucket
 
 
   /// [Content — Initialization] ///
@@ -190,7 +189,7 @@ function Content(props) {
   // Get image/video lists from S3 bucket
   useEffect(() => {
     if (s3_objects.list) {
-      var [images_list, videos_list] = parseBucketFileList(s3_objects.list, s3_bucketParams.name);
+      var [images_list, videos_list] = parseBucketFileList(s3_objects.list, s3_bucketParams[0].name);
       setImagesList(images_list);
       setVideosList(videos_list);
     }
