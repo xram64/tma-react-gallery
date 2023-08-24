@@ -15,6 +15,7 @@ import * as Utils from './utils.js';
 export default function GalleryContainer() {
   const { galleryBucketParams } = useLoaderData();  // Get the bucket params passed back by the `galleryLoader` (called by the dynamic route in App.js)
   const [passwordHash, setPasswordHash] = useState(null);
+  const [remember, setRemember] = useState(false);
   const [accessKey, setAccessKey] = useState(null);
   const [endpointDomain, setEndpointDomain] = useState(null);
   const [readyLoadGallery, setReadyLoadGallery] = useState(false);
@@ -28,14 +29,21 @@ export default function GalleryContainer() {
 
   // Callback passed into `Gateway` component. Used to set the state variable holding the password.
   const handlePasswordInput = (inputPassword, inputRemember) => {
-    setPasswordHash(sha3_256(inputPassword));
-
     // Validate password hash with API using custom hook.
+    setPasswordHash(sha3_256(inputPassword));
     validatePassword(galleryBucketParams['bucketName'], sha3_256(inputPassword));
 
-    if (isValid) {
+    // Set remember state.
+    setRemember(inputRemember);
+  };
+
+  useEffect(() => {
+    if (isValid == null) {
+      // If `isValid` is still null, `validatePassword` hasn't run yet, and this is probably the first page load.
+    }
+    else if (isValid) {
       // Password valid. Store CloudFront domain and access key in cookies, if requested.
-      if (inputRemember) {
+      if (remember) {
         const bucketCookieValue = { "bucket_name": galleryBucketParams['bucketName'], "endpoint_domain": validatedEndpointDomain, "access_key": validatedAccessKey };
         Utils.setCookieAsJSON(bucketCookieNamePrefix + galleryBucketParams['id'], bucketCookieValue);
       }
@@ -44,11 +52,11 @@ export default function GalleryContainer() {
       setReadyLoadGallery(true);                   // Prepare to load the `Gallery` component.
     }
     else {
-      // HACK! Implement invalid case.
-      // Denied: Ask user for password again. (Clear input box?)
+      // Password denied. Ask user for password again. (Clear input box?)
+      //   HACK! Need to implement this case.
       console.error("Password invalid.");
     }
-  };
+  }, [isValid]);
 
   // Check that the loader returned a bucket params object, and check for existing cookies.
   useEffect(() => {
@@ -88,7 +96,7 @@ export default function GalleryContainer() {
 // Gateway component that loads first on any request for a Gallery page, unless a valid password for the gallery is stored in user's cookies.
 // Prompts for the password for the selected gallery page, returning the gallery if correct.
 export function Gateway(props) {
-  const [inputPassword, setInputPassword] = useState(null);
+  const [inputPassword, setInputPassword] = useState('');
   const [inputRemember, setInputRemember] = useState(false);
 
   // Form callback, called when submit button is pressed. Calls the `onSubmit` passed down by a prop from `GalleryContainer`.
@@ -127,7 +135,7 @@ export function Gateway(props) {
 //┃  Custom Hooks  ┃
 //┣━━━━━━━━━━━━━━━━┛
 function useValidatePassword() {
-  const [isValid, setIsValid] = useState(false);
+  const [isValid, setIsValid] = useState(null);
   const [validatedEndpointDomain, setValidatedEndpointDomain] = useState(null);
   const [validatedAccessKey, setValidatedAccessKey] = useState(null);
 
