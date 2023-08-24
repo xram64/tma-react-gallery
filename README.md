@@ -7,7 +7,7 @@ graph TD
     %% Flowchart %%
     A([App])
     
-    A --> C[Content]
+    A --> C[Gallery]
 
     C ---> HD(Header)
     C ---> DS(Display)

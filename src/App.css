@@ -1,3 +1,5 @@
+/* TODO: Separate CSS for each page into its own file? */
+
 body {
   background-color: #2e2930;
   font-family: 'Roboto', sans-serif;
@@ -20,7 +22,7 @@ body {
   }
 }
 
-.content-loading {
+.Gallery-loading {
   font-size: 24px;
   color: #bbb;
   text-shadow: 0 0 1px white;
@@ -32,8 +34,7 @@ body {
   animation-iteration-count: infinite;
 }
 
-
-.content {
+.Gallery {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -143,7 +144,7 @@ body {
   user-select: none;
   margin: 0vw 0.35vw;
   font-size: 0.75em;
-  width: 5em;
+  width: 6em;
 }
 
 
@@ -229,21 +230,21 @@ body {
 }
 
 
-/* Content -> Display */
-#c_photo_display {
+/* Gallery -> Display */
+#g_photo_display {
   display: block;
 }
 
-#c_video_display {
+#g_video_display {
   display: block;
 }
 
-/* Content -> Details */
-#c_photo_details {
+/* Gallery -> Details */
+#g_photo_details {
   display: block;
 }
 
-#c_video_details {
+#g_video_details {
   display: block;
 }
 
@@ -254,6 +255,74 @@ body {
 /* #md_video { } */
 
 
+/* Index */
+.Index {
+  font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+  font-size: 18pt;
+  font-weight: 600;
+  color: #eeeeee;
+  margin: 4rem;
+}
+
+/* Index -> Links */
+.Index a {
+  color: #eeeeee;
+  text-decoration: none;
+}
+.Index a:visited {
+  color: #dddddd;
+}
+.Index a:hover {
+  color: #f4f4f4;
+}
+.Index a:active {
+  color: #ffffff;
+}
+
+/* Index -> List */
+.Index-list-item {
+  margin: 0.5rem 0 0.5rem 0;
+}
+.Index-list-item-link {
+  vertical-align: middle;
+}
+
+
+.ErrorPage {
+  color: #dddddd;
+  margin: 5rem;
+}
+
+.error-page-msg-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.error-page-msg-text {
+  font-style: italic;
+  color: #d6aaaa;
+  border-style: solid;
+  border-radius: 12px;
+  padding: 1rem;
+  border-width: 2px;
+  border-color: #d6aaaa;
+  background-color: hsl(288 7% 12% / 1);
+  box-shadow: inset 0px 0px 10px 2px hsl(291deg 6% 16% / 90%);
+}
+
+.Gateway-prompt {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.Gateway-password {
+  padding: 1rem;
+  color: #d6aaaa;
+  border-style: solid;
+  border-radius: 12px;
+  border-width: 2px;
+  border-color: #d6aaaa;
+  background-color: hsl(288 7% 12% / 1);
+  box-shadow: inset 0px 0px 10px 2px hsl(291deg 6% 16% / 90%);
+}
 
 
 /*** Top panel layout:
