@@ -152,8 +152,13 @@ function useValidatePassword() {
       })
     })
       .then((response) => response.json())
-      .then((data) => {
+      .then((responseJson) => {
         console.log("[DEBUG]: Validation API fetch @ " + Date.now());
+
+        // Parse stringified JSON in `body` field of the reponse object.
+        const data = JSON.parse(responseJson.body);
+
+        // Read response values.
         if (data.valid && data.valid == 'Yes') {
           setIsValid(true);
           setValidatedEndpointDomain(data.endpoint_domain);

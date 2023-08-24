@@ -219,7 +219,7 @@ export default function Gallery(props) {
   // Update on changes to 'currentIndex' or 'mode'
   useEffect(() => {
     if (ready) {
-      console.log("[DEBUG] currentMedia.src: " + currentMedia.src + " | currentIndex.image: " + currentIndex.image + " | currentIndex.video: " + currentIndex.video);
+      // console.log("[DEBUG] currentMedia.src: " + currentMedia.src + " | currentIndex.image: " + currentIndex.image + " | currentIndex.video: " + currentIndex.video);
 
       if (mode === 'images') {
         setCurrentMedia({
