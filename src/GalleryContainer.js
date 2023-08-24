@@ -30,7 +30,7 @@ export default function GalleryContainer() {
   // Callback passed into `Gateway` component. Used to set the state variable holding the password.
   const handlePasswordInput = (inputPassword, inputRemember) => {
     // Validate password hash with API using custom hook.
-    setPasswordHash(sha3_256(inputPassword));
+    setPasswordHash(sha3_256(inputPassword.trim().toLowerCase()));
     validatePassword(galleryBucketParams['bucketName'], sha3_256(inputPassword));
 
     // Set remember state.
