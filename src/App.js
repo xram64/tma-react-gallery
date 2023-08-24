@@ -1,172 +1,38 @@
-// React //
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import './App.css';
-
-// AWS //
-const s3_bucketParams = [
-  { ref: "2022a", name: "tma-meetup-kushoglake-2022", region: "us-east-1" },
-  { ref: "2023a", name: "tma-meetup-buckhouse-2023", region: "us-east-1" },
-];
+import * as Utils from './utils.js';
 
 /*  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
  *  • Layout
  *    - Header with toggle for image/video modes, navigation buttons, and media detail
  *    - Full-window image/video view
  *
- *  • TODO
+ *  • TODO:
+ *    (•) Show a loading spinner during loading of each image/video
+ *    (•) Add a thumbnail row along the bottom (pre-generate thumbnails for each picture -- using AWS Lambda fns?).
  *    (•) Add (pop-out?) list view for images/videos in bucket.
  *    (•) Add sorting options/controls.
  *    (•) Add an info icon to show tooltip in mouseover (keyboard shortcuts, etc).
  *    (?) Add menu option to open image/video in new tab.
  *    (?) Add menu option to download image/video.
- *    (?) Add a thumbnail row along the bottom (pre-generate thumbnails for each picture).
  *    (?) Set cookie to remember last image/video position.
  * 
  *  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
 */
 
+//┣━━━━━━━━━━━━━━━━┓
+//┃   Components   ┃
+//┣━━━━━━━━━━━━━━━━┛
 
-////|  ——————————————————————  |\\\\
-////|  |  Helper functions  |  |\\\\
-////|  ——————————————————————  |\\\\
-
-// A proper modulus function
-function mod(n, m) {
-  return ((n % m) + m) % m;
-}
-// Returns an incremented 'index', unless the new index exceeds a 'max' value.
-function incrementWithClamp(index, max) {
-  var newIndex = index + 1;
-  if (newIndex > max) newIndex = max;
-  return newIndex;
-}
-// Returns an decremented 'index', unless the new index exceeds a 'min' value (default 0).
-function decrementWithClamp(index, min = 0) {
-  var newIndex = index - 1;
-  if (newIndex < min) newIndex = min;
-  return newIndex;
-}
-// Returns a sequence of integers of a given 'length' around a 'center' index.
-// Odd 'length' sequences will have an equal number of indices on both sides of the 'center'.
-// Even 'length' sequences will have one extra number to the right of the 'center'.
-function centeredIndexSequence(center, length, minIndex = 0, maxIndex = Number.POSITIVE_INFINITY) {
-  var seq = [];
-  var indexRange = maxIndex - minIndex + 1;
-  var start = center - Math.floor((length - 1) / 2);
-  var end = start + length - 1;
-
-  // If the provided 'length' is larger than the 'indexRange', the full [minIndex, maxIndex] index list will be returned.
-  if (length > indexRange) {
-    for (let i = minIndex; i <= maxIndex; i++) { seq.push(i); }
-    return seq;
-  }
-
-  // Generate sequence (may include out-of-bounds indices)
-  for (let i = start; i <= end; i++) { seq.push(i); }
-
-  // If the centered sequence would cross the [minIndex, maxIndex] boundary, it will be shifted to fit.
-  if (seq[0] < minIndex) { seq = seq.map((idx) => idx + (minIndex - seq[0])) }
-  else if (seq[seq.length - 1] > maxIndex) { seq = seq.map((idx) => idx - (seq[seq.length - 1] - maxIndex)) }
-
-  return seq;
-}
-// Returns the Unix timestamp from `YYYYMMDD` datestamp and a `HHMMSS` timestamp.
-function getUnixTimestamp(datestamp, timestamp) {
-  var year = datestamp.substring(0, 4), month = datestamp.substring(4, 6), day = datestamp.substring(6, 8);
-  var hour = timestamp.substring(0, 2), minute = timestamp.substring(2, 4), second = timestamp.substring(4, 6);
-  second = (second === "XX") ? "00" : second;
-  return new Date(year, month, day, hour, minute, second).getTime();
-}
-// Reads an XML NodeList of <Contents> elements from an S3 bucket and returns a list of
-//  {mediatype, filename, datestamp, timestamp, credit, src} objects, covering all files in the bucket.
-function parseBucketFileList(contentNodes, bucketName) {
-  var contentList = [];
-
-  for (var i = 0; i < contentNodes.length; i++) {
-    var contentNode = contentNodes[i];
-
-    var size = contentNode.querySelector("Size").innerHTML;
-    //var uploadDate = contentNode.querySelector("LastModified").innerHTML;
-
-    if (size !== "0") {  // Folders will have Size='0', so this must be a file
-      var fullpath = contentNode.querySelector("Key").innerHTML;  // entire relative S3 path
-      var mediatype = fullpath.split("/")[0];                     // main directory: `images` or `videos`
-      var filename  = fullpath.split("/")[1];                     // format: `20220710_123456_CREDITNAME.jpg/mp4`
-
-      var datestamp = filename.split(".")[0].split("_")[0];       // `20220710`
-      var timestamp = filename.split(".")[0].split("_")[1];       // `123456`
-      var credit    = filename.split(".")[0].split("_")[2];       // `CREDITNAME`
-
-      var src = "https://" + bucketName + ".s3.amazonaws.com/" + fullpath;
-
-      contentList.push({ mediatype, filename, datestamp, timestamp, credit, src });
-    }
-  }
-
-  // Default sort list: By mediatype, then date/time.
-  contentList.sort((a, b) => {
-    if (a.mediatype === "images" && b.mediatype === "videos") return -1;
-    else if (a.mediatype === "videos" && b.mediatype === "images") return 1;
-    else if (a.mediatype === b.mediatype) {
-      if (getUnixTimestamp(a.datestamp, a.timestamp) < getUnixTimestamp(b.datestamp, b.timestamp)) return -1;
-      if (getUnixTimestamp(a.datestamp, a.timestamp) > getUnixTimestamp(b.datestamp, b.timestamp)) return 1;
-    }
-    return 0;
-  });
-  var contentListImages = contentList.filter((item) => {
-    return item.mediatype === "images";
-  });
-  var contentListVideos = contentList.filter((item) => {
-    return item.mediatype === "videos";
-  });
-
-  return [contentListImages, contentListVideos];
-}
-// Parses the filename for full date/time info and the credit name.
-function parseDetails(datestamp, timestamp, credit) {
-  // Break datestamp into components
-  var year = datestamp.substring(0, 4);
-  var month = datestamp.substring(4, 6);
-  var day = datestamp.substring(6, 8);
-
-  // Break timestamp into components
-  var hour = timestamp.substring(0, 2);
-  var minute = timestamp.substring(2, 4);
-  var second = timestamp.substring(4, 6);
-  second = (second === "XX") ? "00" : second;
-
-  // Convert to 12-hr time
-  var ampm = hour >= 12 ? 'pm' : 'am';
-  hour = (hour == 0 | hour == 12) ? 12 : (hour % 12);
-
-  // Format readable date string
-  var date_fmt = month + '/' + day + '/' + year + ' ';
-  // Format readable time string
-  var time_fmt = hour + ':' + minute + ' ' + ampm;
-
-  // Capitalize credit name from `credit` (if needed)
-  var creditName = credit.charAt(0).toUpperCase() + credit.slice(1);
-  var credit_fmt = "📷 " + creditName;    // 📷 = &#x1F4F7
-
-  // Return an object with the formatted details
-  return { date: date_fmt, time: time_fmt, credit: credit_fmt };
-}
-
-
-////|  ——————————————————————  |\\\\
-////|  |     Components     |  |\\\\
-////|  ——————————————————————  |\\\\
-
-function Content(props) {
+export default function Gallery(props) {
   // [Update triggers]
   // - User navigates to a different photo/video
   // - User switches between photo/video modes using a MenuButton
 
   // [State]
-  // - Content will receive events from the Header component when the user clicks a "mode" MenuButton.
-  // - Content will also receive events from the Navigation component when the user navigates to a different 
+  // - Gallery will receive events from the Header component when the user clicks a "mode" MenuButton.
+  // - Gallery will also receive events from the Navigation component when the user navigates to a different 
   //    image/video (changing the current image/video).
-  // - Both of these events will change the state of the Content component, with new data passed down 
+  // - Both of these events will change the state of the Gallery component, with new data passed down 
   //    to 'Display' and 'Details' as props.
 
   // These will only change when the gallery is changed and a new S3 bucket is loaded.
@@ -175,21 +41,18 @@ function Content(props) {
 
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState('images');
-  const [currentBucket, setCurrentBucket] = useState({ ref: null, name: null, region: null });
   const [currentMedia, setCurrentMedia] = useState({ src: null, filename: null, datestamp: null, timestamp: null, credit: null });
   const [currentIndex, setCurrentIndex] = useState({ image: -1, video: -1 });
-  // const [currentSort, setCurrentSort] = useState({ type: 'default', dir: 'ascending' });
-  
-  // TODO: (v) Choose bucket based on the current gallery page (or requested gallery?) and load that bucket.
-  const s3_objects = useGetS3Objects(s3_bucketParams[0].name);  // Custom hook: Get list of S3 objects from bucket
+  // const [currentSort, setCurrentSort] = useState({ type: 'default', dir: 'ascending' });    // TODO: Implement sorting options, and move sort logic out of `utils.js`
 
+  const s3_objects = useGetS3Objects(props.endpointDomain, props.accessKey);  // Custom hook: Get list of S3 objects from bucket
 
-  /// [Content — Initialization] ///
+  /// [Gallery — Initialization] ///
 
   // Get image/video lists from S3 bucket
   useEffect(() => {
     if (s3_objects.list) {
-      var [images_list, videos_list] = parseBucketFileList(s3_objects.list, s3_bucketParams[0].name);
+      var [images_list, videos_list] = Utils.parseBucketFileList(s3_objects.list, props.endpointDomain);
       setImagesList(images_list);
       setVideosList(videos_list);
     }
@@ -351,12 +214,12 @@ function Content(props) {
   useHorizonalSwipeNav(navSwipeHandler);
 
 
-  /// [Content — Rendering] ///
+  /// [Gallery — Rendering] ///
 
   // Update on changes to 'currentIndex' or 'mode'
   useEffect(() => {
     if (ready) {
-      console.log("[DEBUG] currentMedia.src: " + currentMedia.src + " | currentIndex.image: " + currentIndex.image + " | currentIndex.video: " + currentIndex.video);  // TEST
+      console.log("[DEBUG] currentMedia.src: " + currentMedia.src + " | currentIndex.image: " + currentIndex.image + " | currentIndex.video: " + currentIndex.video);
 
       if (mode === 'images') {
         setCurrentMedia({
@@ -384,10 +247,10 @@ function Content(props) {
   // If the list is ready
   if (ready) {
     // Convert raw filename values for `datestamp`, `timestamp`, and `credit` into formatted strings for display.
-    var mediaDetails = parseDetails(currentMedia.datestamp, currentMedia.timestamp, currentMedia.credit);
+    var mediaDetails = Utils.parseDetails(currentMedia.datestamp, currentMedia.timestamp, currentMedia.credit);
 
     return (
-      <div className="content" id={"c_" + mode}>
+      <div className="Gallery" id={"g_" + mode}>
 
         <Header
           mode={mode}
@@ -401,7 +264,7 @@ function Content(props) {
           mediaDetails={mediaDetails}
         />
 
-        <Display mode={mode} currentMedia={currentMedia} mediaDetails={mediaDetails} />
+        <Display mode={mode} currentMedia={currentMedia} mediaDetails={mediaDetails} accessKey={props.accessKey} />
 
       </div>
     );
@@ -410,13 +273,13 @@ function Content(props) {
   // If the list is not ready
   else {
     return (
-      <div className="content-loading">
-        <div className="content-loading-text">
+      <div className="Gallery-loading">
+        <div className="Gallery-loading-text">
           Loading...
         </div>
 
         {s3_objects.error &&
-          <div className='content-error-text'>
+          <div className='Gallery-error-text'>
             {"Error: " + s3_objects.error};
           </div>
         }
@@ -484,6 +347,7 @@ function Navigation(props) {
   }, []);
 
   // Change URL fragment (#) on navigation.
+  // TODO: Change this to use the `useNavigation` hook from react-router-dom instead? [https://reactrouter.com/en/main/hooks/use-navigate]
   useEffect(() => {
     if (props.currentIndex.image >= 0 && props.currentIndex.video >= 0) {
       let h_index = (props.mode === 'images' ? props.currentIndex.image : props.currentIndex.video);
@@ -516,13 +380,13 @@ function Navigation(props) {
       {/*  Previous button  */}
       <NavButton label="<" desc="previous" cls="prev-next" onClick={() => {
         if (props.mode === 'images')
-          props.setCurrentIndex({ image: decrementWithClamp(props.currentIndex.image, 0), video: props.currentIndex.video });
+          props.setCurrentIndex({ image: Utils.decrementWithClamp(props.currentIndex.image, 0), video: props.currentIndex.video });
         else if (props.mode === 'videos')
-          props.setCurrentIndex({ video: decrementWithClamp(props.currentIndex.video, 0), image: props.currentIndex.image });
+          props.setCurrentIndex({ video: Utils.decrementWithClamp(props.currentIndex.video, 0), image: props.currentIndex.image });
       }} />
 
       {/*  Numbered buttons  */}
-      {centeredIndexSequence(center, navButtonCount, 0, maxIndex).map((i) =>
+      {Utils.centeredIndexSequence(center, navButtonCount, 0, maxIndex).map((i) =>
         <NavButton key={i.toString()} label={(i + 1).toString()} desc={"item-" + (i + 1).toString()} cls={(i == center) ? "number active" : "number"} onClick={() => {
           if (props.mode === 'images')
             props.setCurrentIndex({ image: i, video: props.currentIndex.video });
@@ -534,9 +398,9 @@ function Navigation(props) {
       {/*  Next button  */}
       <NavButton label=">" desc="next" cls="prev-next" onClick={() => {
         if (props.mode === 'images')
-          props.setCurrentIndex({ image: incrementWithClamp(props.currentIndex.image, props.imagesListLength - 1), video: props.currentIndex.video });
+          props.setCurrentIndex({ image: Utils.incrementWithClamp(props.currentIndex.image, props.imagesListLength - 1), video: props.currentIndex.video });
         else if (props.mode === 'videos')
-          props.setCurrentIndex({ video: incrementWithClamp(props.currentIndex.video, props.videosListLength - 1), image: props.currentIndex.image });
+          props.setCurrentIndex({ video: Utils.incrementWithClamp(props.currentIndex.video, props.videosListLength - 1), image: props.currentIndex.image });
       }} />
 
       {/*  Last button  */}
@@ -562,7 +426,7 @@ function NavButton(props) {
 
 function Details(props) {
   return (
-    <div className="header-details" id={"c_" + props.mode + "_details"}>
+    <div className="header-details" id={"g_" + props.mode + "_details"}>
       <div className="header-details-date">{props.mediaDetails.date}</div>
       <div className="header-details-time">{props.mediaDetails.time}</div>
       <div className="header-details-credit">{props.mediaDetails.credit}</div>
@@ -572,14 +436,14 @@ function Details(props) {
 
 
 function Display(props) {
-  // Content should pass down the photo/video to this component as a prop.
+  // Gallery should pass down the photo/video to this component as a prop.
 
   var mediaTag = null;
 
   // Setup photo
   if (props.mode === 'images') {
     mediaTag = <img
-      src={props.currentMedia.src}
+      src={props.currentMedia.src + "?key=" + btoa(props.accessKey)}  // Submit base64-encoded access key as a query parameter
       className="display-media"
       id="md_photo"
       data-filename={props.currentMedia.filename}
@@ -594,7 +458,7 @@ function Display(props) {
   // Setup video
   else if (props.mode === 'videos') {
     mediaTag = <video controls preload="metadata"
-      src={props.currentMedia.src}
+      src={props.currentMedia.src + "?key=" + btoa(props.accessKey)}  // Submit base64-encoded access key as a query parameter
       className="display-media"
       id="md_video"
       data-filename={props.currentMedia.filename}
@@ -606,7 +470,7 @@ function Display(props) {
   }
 
   return (
-    <div className="display" id={"c_" + props.mode + "_display"}>
+    <div className="display" id={"g_" + props.mode + "_display"}>
       <a className="display-link">
         {mediaTag}
       </a>
@@ -616,21 +480,23 @@ function Display(props) {
 }
 
 
-///|  Custom Hooks  |\\\
+//┣━━━━━━━━━━━━━━━━┓
+//┃  Custom Hooks  ┃
+//┣━━━━━━━━━━━━━━━━┛
 
-function useGetS3Objects(bucketName) {
+function useGetS3Objects(endpointDomain, accessKey) {
   const [objects, setObjects] = useState({
     list: [],
     error: false,
   });
 
   useEffect(() => {
-    // List objects in S3 bucket
-    // Returns a NodeList of <Contents> elements, each containing a file path or a folder path (with size 0)
-    fetch("https://" + bucketName + ".s3.amazonaws.com/")
+    // List objects in S3 bucket.
+    // Returns a NodeList of <Contents> elements, each containing a file path or a folder path (with size 0).
+    fetch(`https://${endpointDomain}/?key=${btoa(accessKey)}`)  // Submit base64-encoded access key as a query parameter
       .then((response) => response.text())
       .then((xml) => new window.DOMParser().parseFromString(xml, "text/xml"))
-      .then((data) => { setObjects({ list: data.querySelectorAll("Contents"), error: false }); console.log("[DEBUG]: API fetch @ " + Date.now()); })
+      .then((data) => { setObjects({ list: data.querySelectorAll("Contents"), error: false }); console.log("[DEBUG]:S3 API fetch @ " + Date.now()); })
       .catch(error => setObjects({ list: [], error: error }));
   }, []);  // run once (never re-render)
 
@@ -724,15 +590,3 @@ function useHorizonalSwipeNav(updateIndex, minChangeX = 60, maxChangeY = 120) {
   useEventListener('touchstart', touchStartHandler, document);
   useEventListener('touchend', touchEndHandler, document);
 }
-
-
-///|  Root Component  |\\\
-function App() {
-  return (
-    <div className="App">
-      <Content />
-    </div>
-  );
-}
-
-export default App;
