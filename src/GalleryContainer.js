@@ -27,7 +27,7 @@ export default function GalleryContainer() {
     setPasswordHash(sha3_256(inputPassword));
 
     // Validate password hash with API using custom hook.
-    validatePassword(galleryBucketParams['bucketName'], passwordHash);
+    validatePassword(galleryBucketParams['bucketName'], sha3_256(inputPassword));
 
     if (isValid) {
       // Password valid. Store CloudFront domain and access key in cookies, if requested.
@@ -40,6 +40,7 @@ export default function GalleryContainer() {
     else {
       // Denied: Ask user for password again. (Clear input box?)
       // HACK! Implement invalid case.
+      console.error("Password invalid.");
     }
   };
 
