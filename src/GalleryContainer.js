@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useLoaderData } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useLoaderData, useNavigate } from 'react-router-dom';
 import { sha3_256 } from 'js-sha3';
 
 import { S3BucketParams } from './App';
@@ -15,10 +15,14 @@ import * as Utils from './utils.js';
 export default function GalleryContainer() {
   const { galleryBucketParams } = useLoaderData();  // Get the bucket params passed back by the `galleryLoader` (called by the dynamic route in App.js)
   const [passwordHash, setPasswordHash] = useState(null);
+  const [accessKey, setAccessKey] = useState(null);
+  const [endpointDomain, setEndpointDomain] = useState(null);
+  const [readyLoadGallery, setReadyLoadGallery] = useState(false);
+  const navigate = useNavigate();
 
-  const { valid: isValid, endpointDomain, accessKey, validatePassword } = useValidatePassword();
+  const { isValid, validatedEndpointDomain, validatedAccessKey, validatePassword } = useValidatePassword();
 
-  // Each bucket will have its own cookie, as a JSON object. The bucket ID (see S3BucketParams) will follow this prefix.
+  // Each bucket will have its own cookie, as a JSON object. The bucket ID (see `S3BucketParams`) will follow this prefix.
   // Note: These cookie names must match the names used in the CloudFront function.
   const bucketCookieNamePrefix = 'gallery-bucket-';
 
@@ -32,28 +36,42 @@ export default function GalleryContainer() {
     if (isValid) {
       // Password valid. Store CloudFront domain and access key in cookies, if requested.
       if (inputRemember) {
-        const bucketCookieValue = { "bucket_name": galleryBucketParams['bucketName'], "endpoint_domain": endpointDomain, "access_key": accessKey };
+        const bucketCookieValue = { "bucket_name": galleryBucketParams['bucketName'], "endpoint_domain": validatedEndpointDomain, "access_key": validatedAccessKey };
         Utils.setCookieAsJSON(bucketCookieNamePrefix + galleryBucketParams['id'], bucketCookieValue);
       }
-      return <Gallery galleryBucketParams={galleryBucketParams} endpointDomain={endpointDomain} accessKey={accessKey} />;
+      setEndpointDomain(validatedEndpointDomain);  // Store validated endpoint domain to use when loading `Gallery` component.
+      setAccessKey(validatedAccessKey);            // Store validated access key to use when loading `Gallery` component.
+      setReadyLoadGallery(true);                   // Prepare to load the `Gallery` component.
     }
     else {
-      // Denied: Ask user for password again. (Clear input box?)
       // HACK! Implement invalid case.
+      // Denied: Ask user for password again. (Clear input box?)
       console.error("Password invalid.");
     }
   };
 
+  // Check that the loader returned a bucket params object, and check for existing cookies.
+  useEffect(() => {
+    if (!galleryBucketParams) {
+      // If `galleryBucketParams` is null, a non-existant `galleryPath` was requested. Redirect user to index.
+      console.log("[DEBUG]: Path not found. Redirecting to index.");
+      navigate("/");
+    }
+    else {
+      // Check user's cookies for an existing gallery access key, before prompting user for password.
+      const existingCookie = Utils.readCookieAsJSON(bucketCookieNamePrefix + galleryBucketParams['id'])
+      if (existingCookie && existingCookie.access_key) {
+        setEndpointDomain(existingCookie.endpoint_domain);  // Store existing endpoint domain to use when loading `Gallery` component.
+        setAccessKey(existingCookie.access_key);            // Store existing access key to use when loading `Gallery` component.
+        setReadyLoadGallery(true);                          // Prepare to load the `Gallery` component.
+      }
+    }
+  }, [galleryBucketParams]);
 
-  // Note: This block (and everything else here) will be re-run every time this component's
-  //   state changes, so we can conditionally load either the Gateway or Gallery component.
-
-  // Check user's cookies for an existing gallery access key, before prompting user for password.
-  const existingCookie = Utils.readCookieAsJSON(bucketCookieNamePrefix + galleryBucketParams['id'])
-
-  if (existingCookie && existingCookie.access_key) {
-    // If an access key is stored in user's cookies, load the `Gallery` component and pass it on along with the bucket params.
-    return <Gallery galleryBucketParams={galleryBucketParams} endpointDomain={endpointDomain} accessKey={existingCookie.access_key} />;
+  // Check the "ready" flag, and decide whether to show the `Gateway` or `Gallery` component.
+  if (readyLoadGallery) {
+    // If the flag is set, load the `Gallery` component and pass it on along with the bucket params.
+    return <Gallery galleryBucketParams={galleryBucketParams} endpointDomain={endpointDomain} accessKey={accessKey} />;
     // TODO: This assumes the access key is valid if it exists. Add some checking/error handling here.
   }
   else {
@@ -109,9 +127,9 @@ export function Gateway(props) {
 //┃  Custom Hooks  ┃
 //┣━━━━━━━━━━━━━━━━┛
 function useValidatePassword() {
-  const [valid, setValid] = useState(false);
-  const [endpointDomain, setEndpointDomain] = useState(null);
-  const [accessKey, setAccessKey] = useState(null);
+  const [isValid, setIsValid] = useState(false);
+  const [validatedEndpointDomain, setValidatedEndpointDomain] = useState(null);
+  const [validatedAccessKey, setValidatedAccessKey] = useState(null);
 
   // Validate gallery password: POST request -> AWS REST API -> AWS Lambda function
   const validatePassword = (bucket_name, password_hash) => {
@@ -129,31 +147,31 @@ function useValidatePassword() {
       .then((data) => {
         console.log("[DEBUG]: Validation API fetch @ " + Date.now());
         if (data.valid && data.valid == 'Yes') {
-          setValid(true);
-          setEndpointDomain(data.endpoint_domain);
-          setAccessKey(data.access_key);
+          setIsValid(true);
+          setValidatedEndpointDomain(data.endpoint_domain);
+          setValidatedAccessKey(data.access_key);
         }
         else if (data.valid && data.valid == 'No') {
-          setValid(false);
+          setIsValid(false);
           console.error("[API Response] " + "Invalid password for bucket `" + bucket_name + "`.");
         }
         else if (data.error) {
-          setValid(false);
+          setIsValid(false);
           console.error("[API Response] " + data.error);
         }
         else {
-          setValid(false);
+          setIsValid(false);
           console.error("Unknown error occured while reading API response.");
         }
       })
       .catch(error => {
-        setValid(false);
+        setIsValid(false);
         console.error("Error occurred while validating password:", error);
         throw error;
       });
   };
 
-  return { valid, endpointDomain, accessKey, validatePassword }
+  return { isValid, validatedEndpointDomain, validatedAccessKey, validatePassword }
 }
 
 //┣━━━━━━━━━━━━━━━━┓
@@ -164,7 +182,6 @@ export function galleryLoader({ params }) {
   //   dynamic segment is used (i.e. `:galleryPath`), via the `params.galleryPath` variable.
   // Once the `galleryPath` param is loaded and the corresponding bucket object is returned, it can be
   //   accessed by the receiving component (`GalleryContainer`) through the `useLoaderData()` hook.
-
   let galleryBucketParams = null;
 
   // Look for a bucket in the list that matches the incoming `galleryPath`
@@ -175,7 +192,8 @@ export function galleryLoader({ params }) {
     galleryBucketParams = bucketMatch;
   }
   else {
-    // HACK! Implement case: Redirect to an error page or reload index.
+    // Loader returns a `null` value for galleryBucketParams if no matching bucket is found.
+    // This must be handled by GalleryContainer.
     console.error("No matching bucket found for the path '" + params.galleryPath + "'!")
   }
 
