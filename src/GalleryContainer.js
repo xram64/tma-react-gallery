@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useLoaderData, useNavigate } from 'react-router-dom';
 import { sha3_256 } from 'js-sha3';
 
 import { S3BucketParams } from './App';
 import Gallery from './Gallery';
 import * as Utils from './utils.js';
+
+import imgRedX from './redx_9e170d.png';
 
 //┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 //┃  Gallery Container Component  ┃
@@ -19,6 +21,9 @@ export default function GalleryContainer() {
   const [accessKey, setAccessKey] = useState(null);
   const [endpointDomain, setEndpointDomain] = useState(null);
   const [readyLoadGallery, setReadyLoadGallery] = useState(false);
+  const [passwordErrorMessage, setPasswordErrorMessage] = useState('');  // [Gateway] Contents of error message.
+  const [passwordErrorMessageShown, setPasswordErrorMessageShown] = useState(false);  // [Gateway] Flag to show/hide error message.
+  const passwordErrorMessageTimerRef = useRef();  // [Gateway] Timer to control error message fade-outs.
   const navigate = useNavigate();
 
   const { isValid, validatedEndpointDomain, validatedAccessKey, validatePassword } = useValidatePassword();
@@ -52,9 +57,11 @@ export default function GalleryContainer() {
       setReadyLoadGallery(true);                   // Prepare to load the `Gallery` component.
     }
     else {
-      // Password denied. Ask user for password again. (Clear input box?)
-      //   HACK! Need to implement this case.
+      // Password denied. Ask user for password again.
       console.error("Password invalid.");
+      clearTimeout(passwordErrorMessageTimerRef.current);  // Reset timer
+      setPasswordErrorMessageShown(true);  // Make error message visible
+      setPasswordErrorMessage("Invalid password. (Check pictures channel in 'TMA Cabin Fever' Discord for the password.)");  // Set error message
     }
   }, [isValid]);
 
@@ -78,13 +85,15 @@ export default function GalleryContainer() {
 
   // Check the "ready" flag, and decide whether to show the `Gateway` or `Gallery` component.
   if (readyLoadGallery) {
+    setPasswordErrorMessage('');  // Clear any error messages
+    setPasswordErrorMessageShown(false);
     // If the flag is set, load the `Gallery` component and pass it on along with the bucket params.
     return <Gallery galleryBucketParams={galleryBucketParams} endpointDomain={endpointDomain} accessKey={accessKey} />;
     // TODO: This assumes the access key is valid if it exists. Add some checking/error handling here.
   }
   else {
     // Otherwise, load `Gateway` component, passing down the `handlePasswordInput` function to allow it to validate the user's entered password.
-    return <Gateway onSubmit={handlePasswordInput} />;
+    return <Gateway onSubmit={handlePasswordInput} galleryBucketParams={galleryBucketParams ?? null} passwordErrorMessage={passwordErrorMessage} setPasswordErrorMessage={setPasswordErrorMessage} passwordErrorMessageShown={passwordErrorMessageShown} setPasswordErrorMessageShown={setPasswordErrorMessageShown} passwordErrorMessageTimerRef={passwordErrorMessageTimerRef} />;
   }
 }
 
@@ -106,25 +115,44 @@ export function Gateway(props) {
       props.onSubmit(inputPassword, inputRemember);  // Pass values back up to the parent `GalleryContainer` component
     }
     else {
-      // TODO: Add error handling
       console.error('No password submitted!');
+      clearTimeout(props.passwordErrorMessageTimerRef.current);  // Reset timer
+      props.setPasswordErrorMessageShown(true);                  // Make error message visible
+      props.setPasswordErrorMessage('No password entered.');     // Set error message
     }
   };
 
-  // TODO: Add styling for the Gateway page/links
+  // Error message display handler. Detects when an error message is set, waits a few seconds, then toggles message flag off to trigger fade-out transition.
+  useEffect(() => {
+    if (props.passwordErrorMessageShown) {
+      props.passwordErrorMessageTimerRef.current = setTimeout(() => {
+        props.setPasswordErrorMessageShown(false);
+      }, 6000); // Clear the message after 6 seconds (after `fadeOut` animation defined in CSS is finished).
+      return () => {
+        clearTimeout(props.passwordErrorMessageTimerRef.current);  // Reset timer
+      };
+    }
+  }, [props.passwordErrorMessageShown]);
+
   return (
     <div className="Gateway">
       <div className="Gateway-prompt">
-        Enter the password for the <span className="Gateway-gallery-name">{ /* TODO */}</span> gallery:
+        Enter the password for the <span className="Gateway-gallery-name">{props.galleryBucketParams.label ?? ''}</span> gallery:
       </div>
-      <div className="Gateway-pasword">
-        <form onSubmit={handleSubmit}>
-          <input className="Gateway-password-textbox" type="text" value={inputPassword} onChange={(e) => setInputPassword(e.target.value)} />
-          <button className="Gateway-password-submit" type="submit"></button>
+      <div className="Gateway-password">
+        <form className="Gateway-password-form" onSubmit={handleSubmit}>
+          <div className="Gateway-password-textbox-wrapper">
+            <input className="Gateway-password-textbox-box" type="text" value={inputPassword} placeholder="Gallery password (see Discord)" spellcheck="false" onChange={(e) => setInputPassword(e.target.value)} />
+            <img src={imgRedX} alt="X" width="20px" className={(props.passwordErrorMessageShown) ? "Gateway-password-textbox-x" : "Gateway-password-textbox-x error-message-hidden"} />
+          </div>
+          <button className="Gateway-password-submit" type="submit">Enter</button>
           <label>
             <input className="Gateway-password-remember-box" type="checkbox" checked={inputRemember} onChange={(e) => setInputRemember(e.target.checked)} />
             <span className="Gateway-password-remember-text">Remember password on this device?</span>
           </label>
+          <div className={(props.passwordErrorMessageShown) ? "Gateway-password-error-message" : "Gateway-password-error-message error-message-hidden"}>
+            <span>{props.passwordErrorMessage}</span>
+          </div>
         </form>
       </div>
     </div>

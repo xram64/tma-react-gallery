@@ -1,5 +1,7 @@
 /* TODO: Separate CSS for each page into its own file? */
 
+@import url(https://fonts.googleapis.com/css?family=Roboto:300);
+
 body {
   background-color: #2e2930;
   font-family: 'Roboto', sans-serif;
@@ -309,9 +311,10 @@ body {
   box-shadow: inset 0px 0px 10px 2px hsl(291deg 6% 16% / 90%);
 }
 
-.Gateway-prompt {
-  font-size: 1.1rem;
+/* .Gateway-prompt {
+  font-size: 18pt;
   font-weight: 600;
+  color: #eee;
 }
 .Gateway-password {
   padding: 1rem;
@@ -323,10 +326,104 @@ body {
   background-color: hsl(288 7% 12% / 1);
   box-shadow: inset 0px 0px 10px 2px hsl(291deg 6% 16% / 90%);
 }
+.Gateway-password-textbox {
+  height: 2.3rem;
+  min-width: 16rem;
+  font-size: 18pt;
+  border: none;
+  border-radius: 12px;
+}
+.Gateway-password-submit {
+  height: 2.5rem;
+  width: 6rem;
+  font-size: 14pt;
+  border-radius: 12px;
+  font-weight: 600;
+  font-family: 'Lucida Sans';
+  background-color: #ddd;
+  color: #2e2930;
+  border-style: none;
+  box-shadow: 1px 1px 1px 0px #b0b0b0;
+}
+ */
 
 
-/*** Top panel layout:
-
-[ header-menu    <------header-nav------>    header-details ]
-
-***/
+.Gateway-password-form {
+  position: relative;
+  z-index: 1;
+  background: #ffffff;
+  max-width: 380px;
+  margin: 3rem auto 10rem;
+  padding: 46px 48px 22px 48px;
+  text-align: center;
+  box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.2), 0 5px 5px 0 rgba(0, 0, 0, 0.24);
+  border-radius: 12px;
+}
+.Gateway-password-form button {
+  font-family: 'Roboto', sans-serif;
+  text-transform: uppercase;
+  outline: 0;
+  background: #8e6d8b;
+  width: 100%;
+  border: 0;
+  padding: 15px;
+  color: #ffffff;
+  font-size: 16px;
+  cursor: pointer;
+  margin-bottom: 0.7rem;
+}
+.Gateway-password-form button:hover,.Gateway-password-form button:active,.Gateway-password-form button:focus {
+  background: #82627f;
+}
+.Gateway-password-textbox-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+.Gateway-password-textbox-box {
+  font-family: 'Roboto', sans-serif;
+  outline: 0;
+  background: #f2f2f2;
+  width: 100%;
+  border: 0;
+  margin: 0 0 15px;
+  padding: 15px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+.Gateway-password-textbox-x {
+  position: absolute;
+  right: 8px;
+  top: 21%;
+  pointer-events: none;
+  opacity: 0.75;
+}
+.Gateway-password-remember-box {
+  width: 1.5rem;
+  vertical-align: bottom;
+}
+.Gateway-password-remember-text {
+  font-size: 14px;
+}
+.Gateway-password-error-message {
+  color: #850c05;
+  font-size: 16px;
+  margin-top: 20px;
+  margin-bottom: 4px;
+  min-height: 24px;
+  opacity: 1;
+}
+.error-message-hidden {
+  opacity: 0;
+  transition: opacity 1.5s linear; /*(1 0%, 1 75%, 0 100%); /* 6s visible -> 8s fade-out */
+  pointer-events: none; /* Make it non-interactable */
+}
+@keyframes fadeOut {
+  0%, 75% {
+      opacity: 1;
+  }
+  100% {
+      opacity: 0;
+  }
+}
+/* animation: fadeOut 8s forwards;  /* On show: 6s visible -> 2s fade-out */
