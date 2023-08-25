@@ -36,7 +36,7 @@ export default function GalleryContainer() {
   const handlePasswordInput = (inputPassword, inputRemember) => {
     // Validate password hash with API using custom hook.
     setPasswordHash(sha3_256(inputPassword.trim().toLowerCase()));
-    validatePassword(galleryBucketParams['bucketName'], sha3_256(inputPassword));
+    validatePassword(galleryBucketParams['bucketName'], sha3_256(inputPassword.trim().toLowerCase()));
 
     // Set remember state.
     setRemember(inputRemember);
