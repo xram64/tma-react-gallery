@@ -415,15 +415,6 @@ body {
 }
 .error-message-hidden {
   opacity: 0;
-  transition: opacity 1.5s linear; /*(1 0%, 1 75%, 0 100%); /* 6s visible -> 8s fade-out */
-  pointer-events: none; /* Make it non-interactable */
+  transition: opacity 1.5s linear;
+  pointer-events: none;
 }
-@keyframes fadeOut {
-  0%, 75% {
-      opacity: 1;
-  }
-  100% {
-      opacity: 0;
-  }
-}
-/* animation: fadeOut 8s forwards;  /* On show: 6s visible -> 2s fade-out */

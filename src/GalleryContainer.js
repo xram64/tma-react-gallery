@@ -85,8 +85,6 @@ export default function GalleryContainer() {
 
   // Check the "ready" flag, and decide whether to show the `Gateway` or `Gallery` component.
   if (readyLoadGallery) {
-    setPasswordErrorMessage('');  // Clear any error messages
-    setPasswordErrorMessageShown(false);
     // If the flag is set, load the `Gallery` component and pass it on along with the bucket params.
     return <Gallery galleryBucketParams={galleryBucketParams} endpointDomain={endpointDomain} accessKey={accessKey} />;
     // TODO: This assumes the access key is valid if it exists. Add some checking/error handling here.
@@ -127,7 +125,8 @@ export function Gateway(props) {
     if (props.passwordErrorMessageShown) {
       props.passwordErrorMessageTimerRef.current = setTimeout(() => {
         props.setPasswordErrorMessageShown(false);
-      }, 6000); // Clear the message after 6 seconds (after `fadeOut` animation defined in CSS is finished).
+        setTimeout(() => { props.setPasswordErrorMessage('') }, 1600);  // Clear error message after fade-out is finished (1.5s)
+      }, 6000);  // Trigger error message fade-out after 6 seconds
       return () => {
         clearTimeout(props.passwordErrorMessageTimerRef.current);  // Reset timer
       };
@@ -142,7 +141,7 @@ export function Gateway(props) {
       <div className="Gateway-password">
         <form className="Gateway-password-form" onSubmit={handleSubmit}>
           <div className="Gateway-password-textbox-wrapper">
-            <input className="Gateway-password-textbox-box" type="text" value={inputPassword} placeholder="Gallery password (see Discord)" spellcheck="false" onChange={(e) => setInputPassword(e.target.value)} />
+            <input className="Gateway-password-textbox-box" type="text" value={inputPassword} placeholder="Gallery password (see Discord)" spellCheck="false" onChange={(e) => setInputPassword(e.target.value)} />
             <img src={imgRedX} alt="X" width="20px" className={(props.passwordErrorMessageShown) ? "Gateway-password-textbox-x" : "Gateway-password-textbox-x error-message-hidden"} />
           </div>
           <button className="Gateway-password-submit" type="submit">Enter</button>
