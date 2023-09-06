@@ -26,7 +26,7 @@ afterEach(() => {
 // Run tests
 test('quick test', () => {
   render(<App />);
-  const loading = screen.getByText(/Loading.../i);
+  const loading = screen.getByText(/TMA Meetups/i);
   expect(loading).toBeInTheDocument();
 });
 
