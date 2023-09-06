@@ -6,7 +6,7 @@ import { S3BucketParams } from './App';
 import Gallery from './Gallery';
 import * as Utils from './utils.js';
 
-import imgRedX from './redx_9e170d.png';
+import imgRedX from './redx.png';
 
 //┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 //┃  Gallery Container Component  ┃
