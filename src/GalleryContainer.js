@@ -6,7 +6,8 @@ import { S3BucketParams } from './App';
 import Gallery from './Gallery';
 import * as Utils from './utils.js';
 
-import imgRedX from './redx.png';
+import imgRedX from './img/redx.png';
+import imgBG from './img/tma-bg.png';
 
 //┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 //┃  Gallery Container Component  ┃
@@ -134,7 +135,7 @@ export function Gateway(props) {
   }, [props.passwordErrorMessageShown]);
 
   return (
-    <div className="Gateway">
+    <div className="Gateway" style={{ backgroundImage: `url(${imgBG})` }}>
       <div className="Gateway-prompt">
         Enter the password for the <span className="Gateway-gallery-name">{props.galleryBucketParams.label ?? ''}</span> gallery:
       </div>

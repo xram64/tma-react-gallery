@@ -167,3 +167,27 @@ export function readCookieAsJSON(cookieName) {
   const decodedJSONString = decodeURIComponent(cookieValue);
   return JSON.parse(decodedJSONString);
 }
+
+// Prepares an image/video file for download-on-click by fetching the file as a blob, creating an object URL, and clicking a hidden anchor tag to trigger downloading.
+// This is needed because file downloads cannot be triggered cross-origin. Instead, we make a new URL on this origin pointing to a blob of the file data.
+export function downloadMediaViaBlob(mediaURL, mediaFilename) {
+  fetch(mediaURL, { mode: 'cors' })
+    .then((response) => response.blob())
+    .then((blob) => {
+      // Create a (same-origin) URL pointing to the blob.
+      const blobURL = window.URL.createObjectURL(blob);
+
+      // Create an link to trigger the blob download and click it.
+      const blobLink = document.createElement('a');
+      blobLink.style.display = 'none';
+      blobLink.href = blobURL;
+      blobLink.download = mediaFilename;
+      document.body.appendChild(blobLink);
+      blobLink.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(blobURL);
+      document.body.removeChild(blobLink);
+    })
+    .catch(() => console.error('Could not download the image at ' + mediaURL));
+}

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as Utils from './utils.js';
 
+import imgDownload from './img/download-white.png';
+import imgNewtab from './img/newtab-white.png';
+
 /*  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
  *  • Layout
  *    - Header with toggle for image/video modes, navigation buttons, and media detail
@@ -12,8 +15,6 @@ import * as Utils from './utils.js';
  *    (•) Add (pop-out?) list view for images/videos in bucket.
  *    (•) Add sorting options/controls.
  *    (•) Add an info icon to show tooltip in mouseover (keyboard shortcuts, etc).
- *    (?) Add menu option to open image/video in new tab.
- *    (?) Add menu option to download image/video.
  *    (?) Set cookie to remember last image/video position.
  * 
  *  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
@@ -262,6 +263,7 @@ export default function Gallery(props) {
           currentIndex={currentIndex}
           setCurrentIndex={setCurrentIndex}
           mediaDetails={mediaDetails}
+          accessKey={props.accessKey}
         />
 
         <Display mode={mode} currentMedia={currentMedia} mediaDetails={mediaDetails} accessKey={props.accessKey} />
@@ -296,7 +298,13 @@ function Header(props) {
       <div className="header-menu">
         <MenuButton label="Photos" cls={(props.mode === 'images') ? "active" : ""} onClick={() => props.setMode('images')} />
         <MenuButton label="Videos" cls={(props.mode === 'videos') ? "active" : ""} onClick={() => props.setMode('videos')} />
+
+        <div className="header-menu-utils">
+          <NewtabButton mode={props.mode} currentMedia={props.currentMedia} accessKey={props.accessKey} />
+          <DownloadButton mode={props.mode} currentMedia={props.currentMedia} accessKey={props.accessKey} />
+        </div>
       </div>
+
 
       <Navigation
         mode={props.mode}
@@ -435,6 +443,35 @@ function Details(props) {
 }
 
 
+function NewtabButton(props) {
+  return (
+    <div className="header-util" id={"g_" + props.mode + "_newtab"}>
+      <button
+        className="header-util-btn"
+        title={"Open " + (props.mode == "images" ? "photo" : "video" ) + " in a new tab"}
+        onClick={() => { window.open(props.currentMedia.src + "?key=" + btoa(props.accessKey), "_blank"); }}
+      >
+        <img src={imgNewtab} className="header-util-icon" />
+      </button>
+    </div>
+  )
+}
+
+function DownloadButton(props) {
+  return (
+    <div className="header-util" id={"g_" + props.mode + "_download"}>
+      <button
+        className="header-util-btn"
+        title={"Download this " + (props.mode == "images" ? "photo" : "video" )}
+        onClick={() => { Utils.downloadMediaViaBlob(props.currentMedia.src + "?key=" + btoa(props.accessKey), props.currentMedia.filename); }}
+      >
+        <img src={imgDownload} className="header-util-icon" />
+      </button>
+    </div>
+  )
+}
+
+
 function Display(props) {
   // Gallery should pass down the photo/video to this component as a prop.
 
@@ -497,7 +534,7 @@ function useGetS3Objects(endpointDomain, accessKey) {
       .then((response) => response.text())
       .then((xml) => new window.DOMParser().parseFromString(xml, "text/xml"))
       .then((data) => { setObjects({ list: data.querySelectorAll("Contents"), error: false }); console.log("[DEBUG]:S3 API fetch @ " + Date.now()); })
-      .catch(error => setObjects({ list: [], error: error }));
+      .catch((error) => setObjects({ list: [], error: error }));
   }, []);  // run once (never re-render)
 
   return objects;

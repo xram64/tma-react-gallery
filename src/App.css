@@ -147,8 +147,8 @@ body {
   margin: 0vw 0.35vw;
   font-size: 0.75em;
   width: 6em;
+  text-align: right;
 }
-
 
 .header-menu-btn {
   text-decoration: none;
@@ -156,8 +156,9 @@ body {
   cursor: pointer;
   display: inline-block;
   
-  text-align: center;
+  font-size: min(calc(10px + 1vw),20px);
   padding: calc(0.15em + 0.2vw) calc(0.5em + 0.2vw);
+  text-align: center;
   margin-left: 0.3vw;
   margin-right: 0.3vw;
 
@@ -179,6 +180,37 @@ body {
   background-color: #8e6a8a;
   border-color: #e0d6df;
   text-shadow: 0 0 16px #ffffffa0;
+}
+
+/* 'header-menu-utils' contains 'Download' and 'New tab' header buttons */
+.header-menu-utils {
+  /* margin: 0 2vw 0 2vw; */
+  margin-left: 2.5vw;
+  padding: 4px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+}
+.header-util {
+  margin: 0 0.4vw 0 0.4vw;
+}
+.header-util-btn {
+  user-select: none;
+  cursor: pointer;
+  display: inline-block;
+  font-size: 0.5vw;
+  padding: calc(0.05em + 0.15vw) calc(0.35em + 0.15vw);
+  border: 0.1em solid #ffffff;
+  border-radius: 0.5em;
+  box-sizing: border-box;
+  transition: all 0.2s;
+  background-color: #fff0;
+}
+.header-util-btn:hover {
+  background-color: #ffffff50;
+}
+.header-util-icon {
+  width: min(25px, calc(8px + 1vw));
 }
 
 
@@ -223,7 +255,6 @@ body {
 
 /* .header-nav-btn.number { } */
 
-
 #navbtn_first {
   border-radius: 0.75em 0em 0em 0.75em;
 }
@@ -263,7 +294,12 @@ body {
   font-size: 18pt;
   font-weight: 600;
   color: #eeeeee;
-  margin: 4rem;
+
+  margin: auto;
+  height: 100vh;
+  padding: 4vh 5vw;
+  background-size: cover;
+  background-position-y: 50%;
 }
 
 /* Index -> Links */
@@ -283,7 +319,8 @@ body {
 
 /* Index -> List */
 .Index-list-item {
-  margin: 0.5rem 0 0.5rem 0;
+  margin: 1rem 0 1rem 0;
+  font-size: 20pt;
 }
 .Index-list-item-link {
   vertical-align: middle;
@@ -311,13 +348,21 @@ body {
   box-shadow: inset 0px 0px 10px 2px hsl(291deg 6% 16% / 90%);
 }
 
-/* TODO: Format and show Gateway title prompt
-.Gateway-prompt {
-  font-size: 18pt;
-  font-weight: 600;
-  color: #eee;
+.Gateway {
+  margin: auto;
+  height: 100vh;
+  padding: 4vh 5vw;
+  background-size: cover;
+  background-position-y: 50%;
 }
-*/
+
+.Gateway-prompt {
+  font-size: min(1.2rem, calc(1rem + 0.2vw));
+  color: #f2f2f2;
+  font-weight: 700;
+  text-align: center;
+  margin-top: 4rem;
+}
 
 .Gateway-password-form {
   position: relative;

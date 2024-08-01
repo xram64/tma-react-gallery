@@ -4,6 +4,8 @@ import { RouterProvider, createBrowserRouter, Outlet, Link, useNavigation } from
 import GalleryContainer, { galleryLoader } from './GalleryContainer';
 import ErrorPage from './ErrorPage';
 
+import imgBG from './img/tma-bg.png';
+
 import './App.css';
 
 /* AWS */
@@ -54,7 +56,7 @@ const router = createBrowserRouter([
 export function Index() {
   return (
     // TODO: Add styling for the index page/links
-    <div className="Index">
+    <div className="Index" style={{ backgroundImage: `url(${imgBG})` }}>
       {/* Basic listing of available gallery S3 buckets. */}
       <h1 className="Index-header">TMA Meetups</h1>
       <ul className="Index-list">
