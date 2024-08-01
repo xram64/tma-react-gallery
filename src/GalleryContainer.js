@@ -29,10 +29,6 @@ export default function GalleryContainer() {
 
   const { isValid, validatedEndpointDomain, validatedAccessKey, validatePassword } = useValidatePassword();
 
-  // Each bucket will have its own cookie, as a JSON object. The bucket ID (see `S3BucketParams`) will follow this prefix.
-  // Note: These cookie names must match the names used in the CloudFront function.
-  const bucketCookieNamePrefix = 'gallery-bucket-';
-
   // Callback passed into `Gateway` component. Used to set the state variable holding the password.
   const handlePasswordInput = (inputPassword, inputRemember) => {
     // Validate password hash with API using custom hook.
@@ -49,9 +45,10 @@ export default function GalleryContainer() {
     }
     else if (isValid) {
       // Password valid. Store CloudFront domain and access key in cookies, if requested.
+      // Note: These cookie names must match the names used in the CloudFront function.
       if (remember) {
         const bucketCookieValue = { "bucket_name": galleryBucketParams['bucketName'], "endpoint_domain": validatedEndpointDomain, "access_key": validatedAccessKey };
-        Utils.setCookieAsJSON(bucketCookieNamePrefix + galleryBucketParams['id'], bucketCookieValue);
+        Utils.setCookieAsJSON(Utils.COOKIE_NAME_PREFIX + galleryBucketParams['id'], bucketCookieValue, 400);  // set cookie expiry to max length (400 days)
       }
       setEndpointDomain(validatedEndpointDomain);  // Store validated endpoint domain to use when loading `Gallery` component.
       setAccessKey(validatedAccessKey);            // Store validated access key to use when loading `Gallery` component.
@@ -75,11 +72,14 @@ export default function GalleryContainer() {
     }
     else {
       // Check user's cookies for an existing gallery access key, before prompting user for password.
-      const existingCookie = Utils.readCookieAsJSON(bucketCookieNamePrefix + galleryBucketParams['id'])
+      const existingCookie = Utils.readCookieAsJSON(Utils.COOKIE_NAME_PREFIX + galleryBucketParams['id'])
       if (existingCookie && existingCookie.access_key) {
         setEndpointDomain(existingCookie.endpoint_domain);  // Store existing endpoint domain to use when loading `Gallery` component.
         setAccessKey(existingCookie.access_key);            // Store existing access key to use when loading `Gallery` component.
         setReadyLoadGallery(true);                          // Prepare to load the `Gallery` component.
+
+        // Refresh cookie expiry date (to max 400 days).
+        Utils.refreshCookie(Utils.COOKIE_NAME_PREFIX + galleryBucketParams['id'])
       }
     }
   }, [galleryBucketParams]);

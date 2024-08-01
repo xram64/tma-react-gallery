@@ -4,20 +4,20 @@ import * as Utils from './utils.js';
 import imgDownload from './img/download-white.png';
 import imgNewtab from './img/newtab-white.png';
 
-/*  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
+/*  ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————
  *  • Layout
  *    - Header with toggle for image/video modes, navigation buttons, and media detail
  *    - Full-window image/video view
  *
  *  • TODO:
- *    (•) Show a loading spinner during loading of each image/video
  *    (•) Add a thumbnail row along the bottom (pre-generate thumbnails for each picture -- using AWS Lambda fns?).
  *    (•) Add (pop-out?) list view for images/videos in bucket.
  *    (•) Add sorting options/controls.
  *    (•) Add an info icon to show tooltip in mouseover (keyboard shortcuts, etc).
- *    (?) Set cookie to remember last image/video position.
+ *    (•) Show a loading spinner during loading of each image/video
+ *    (?) Create a "demo" version of the app using copies of all AWS components and a demo bucket with stock images.
  * 
- *  ——————————————————————————————————————————————————————————————————————————————————————————————————————————————
+ *  ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 */
 
 //┣━━━━━━━━━━━━━━━━┓
@@ -62,62 +62,110 @@ export default function Gallery(props) {
   // Initialize defaults for each media type
   useEffect(() => {
     if (imagesList.length > 0 && videosList.length > 0) {  // make sure file list has been loaded
-      // Default to 'images' mode showing the first image, unless a fragment is provided in the URL (format: 'images-0' or 'videos-0')
+      // Check cookies and URL fragment for starting position. Otherwise default to 'images' mode and show the first image.
+      
+      // These variables will remain 0 unless a 'last position' cookie is successfully loaded below.
+      let startingIndexImages = 0;
+      let startingIndexVideos = 0;
+
+      // First, check user's cookies for saved position info for this gallery.
+      const lastPositionCookieName = Utils.COOKIE_NAME_PREFIX + "last-" + props.galleryBucketParams['id'];  // [TODO: Generalize <|1|>]
+      const lastPositionCookie = Utils.readCookieAsJSON(lastPositionCookieName);
+
+      try {
+        if (lastPositionCookie) {
+
+          if (lastPositionCookie.last_mode == 'images' || lastPositionCookie.last_mode == 'videos')
+            setMode(lastPositionCookie.last_mode);
+          else throw new Error("Invalid mode in last position cookie.");
+
+          const lastIndexImage = parseInt(lastPositionCookie.last_image_index);
+          const lastIndexVideo = parseInt(lastPositionCookie.last_video_index);
+
+          if (lastIndexImage >= 0 && lastIndexImage < imagesList.length && lastIndexVideo >= 0 && lastIndexVideo < videosList.length)
+            setCurrentIndex({ image: lastIndexImage, video: lastIndexVideo });
+          else throw new Error("Image or video index out of bounds in last position cookie.");
+          
+          // Update the URL fragment to match the loaded position (unless it's the start of a gallery). [TODO: Generalize <|2|>]
+          // If a fragment is already provided in the URL, skip adding one. The index set above will be overwritten for the mode set in the fragment.
+          if (!window.location.hash.includes('#') || window.location.hash.length <= 1) {
+            const lastIndexForMode = lastPositionCookie.last_mode == 'images' ? lastIndexImage : lastIndexVideo;
+            if (lastIndexForMode > 0) {
+              let fragment = (lastPositionCookie.last_mode == 'images' ? 'image' : 'video') + (lastIndexForMode + 1);
+              window.location.hash = "#" + fragment;
+            }
+          }
+
+          // If we update the starting indices from a cookie, set them here for the next step.
+          startingIndexImages = lastIndexImage;
+          startingIndexVideos = lastIndexVideo;
+        }
+      }
+      catch (err) {
+        console.log("[ERROR] " + err);
+        // Clear the existing (malformed) cookie for this gallery.
+        Utils.deleteCookie(lastPositionCookieName);
+      }
+
+      // If a fragment is provided in the URL (as 'image123' or 'video123'), switch the current index (and possibly mode) to that position.
+      // A pre-existing fragment will override the last position cookie. But, if no fragment is provided, one will be set by the last position cookie.
       if (window.location.hash.includes('#') && window.location.hash.length > 1) {
         try {
-          let h_mode = window.location.hash.split('#')[1].split('-')[0];
-          let h_index = window.location.hash.split('#')[1].split('-')[1];
-          h_index = parseInt(h_index) - 1;  // the fragment index is 1-indexed, so shift to get the array index
+          let frag_mode = window.location.hash.split('#')[1].match(/(image|video)(\d+)/)[1] + "s";
+          let frag_index = window.location.hash.split('#')[1].match(/(image|video)(\d+)/)[2];
+          frag_index = parseInt(frag_index) - 1;  // the fragment index is 1-indexed, so shift to get the array index
 
-          // Check for valid mode and index, fail if invalid
-          if (h_mode !== 'images' && h_mode !== 'videos') throw new Error("Invalid mode in URL fragment.");
-          if (Number.isNaN(Number.parseInt(h_index))) throw new Error("Invalid index in URL fragment.");
-          if (h_mode === 'images' && (h_index < 0 || h_index >= imagesList.length)) throw new Error("Out-of-bounds index in URL fragment.");
-          if (h_mode === 'videos' && (h_index < 0 || h_index >= videosList.length)) throw new Error("Out-of-bounds index in URL fragment.");
+          // Check for valid mode and index, fail if invalid.
+          if (frag_mode !== 'images' && frag_mode !== 'videos') throw new Error("Invalid mode in URL fragment.");
+          if (isNaN(parseInt(frag_index))) throw new Error("Invalid index in URL fragment.");
+          if (frag_mode === 'images' && (frag_index < 0 || frag_index >= imagesList.length)) throw new Error("Out-of-bounds index in URL fragment.");
+          if (frag_mode === 'videos' && (frag_index < 0 || frag_index >= videosList.length)) throw new Error("Out-of-bounds index in URL fragment.");
 
-          // For a valid mode and index, set the defaults accordingly
-          let h_media = (h_mode === 'images' ? imagesList[h_index] : videosList[h_index]);
+          // For a valid mode and index, set the defaults accordingly.
+          // The mode not given in the fragment will default to the last position cookie, or to 0 if none exists.
+          let frag_media = (frag_mode === 'images' ? imagesList[frag_index] : videosList[frag_index]);
           setCurrentMedia({
-            src: h_media.src,
-            filename: h_media.filename,
-            datestamp: h_media.datestamp,
-            timestamp: h_media.timestamp,
-            credit: h_media.credit
+            src: frag_media.src,
+            filename: frag_media.filename,
+            datestamp: frag_media.datestamp,
+            timestamp: frag_media.timestamp,
+            credit: frag_media.credit
           });
-          if (h_mode === 'images') {
+          if (frag_mode === 'images') {
             setMode('images');
-            setCurrentIndex({ image: h_index, video: 0 });
+            setCurrentIndex({ image: frag_index, video: startingIndexVideos });
           }
-          if (h_mode === 'videos') {
+          if (frag_mode === 'videos') {
             setMode('videos');
-            setCurrentIndex({ image: 0, video: h_index });
+            setCurrentIndex({ image: startingIndexImages, video: frag_index });
           }
         }
         catch (err) {
           console.log("[ERROR] " + err);
-          // Fallback to defaults if URL fragment is malformed  // DRY
+          // Fallback to defaults (or last position cookie) if URL fragment is malformed  // DRY
           setCurrentMedia({
-            src: imagesList[0].src,
-            filename: imagesList[0].filename,
-            datestamp: imagesList[0].datestamp,
-            timestamp: imagesList[0].timestamp,
-            credit: imagesList[0].credit
+            src: imagesList[startingIndexImages].src,
+            filename: imagesList[startingIndexImages].filename,
+            datestamp: imagesList[startingIndexImages].datestamp,
+            timestamp: imagesList[startingIndexImages].timestamp,
+            credit: imagesList[startingIndexImages].credit
           });
-          setCurrentIndex({ image: 0, video: 0 });
+          setCurrentIndex({ image: startingIndexImages, video: startingIndexVideos });
           // Clear the URL fragment (leaves the #)
           window.location.hash = '';
         }
       }
+
+      // Defaults (if no URL fragment is provided)  // DRY
       else {
-        // Defaults (if no URL fragment is provided)  // DRY
         setCurrentMedia({
-          src: imagesList[0].src,
-          filename: imagesList[0].filename,
-          datestamp: imagesList[0].datestamp,
-          timestamp: imagesList[0].timestamp,
-          credit: imagesList[0].credit
+          src: imagesList[startingIndexImages].src,
+          filename: imagesList[startingIndexImages].filename,
+          datestamp: imagesList[startingIndexImages].datestamp,
+          timestamp: imagesList[startingIndexImages].timestamp,
+          credit: imagesList[startingIndexImages].credit
         });
-        setCurrentIndex({ image: 0, video: 0 });
+        setCurrentIndex({ image: startingIndexImages, video: startingIndexVideos });
       }
     }
   }, [imagesList, videosList]);  // Only run when 'imagesList' or 'videoList' changes
@@ -264,6 +312,7 @@ export default function Gallery(props) {
           setCurrentIndex={setCurrentIndex}
           mediaDetails={mediaDetails}
           accessKey={props.accessKey}
+          galleryBucketParams={props.galleryBucketParams}
         />
 
         <Display mode={mode} currentMedia={currentMedia} mediaDetails={mediaDetails} accessKey={props.accessKey} />
@@ -312,6 +361,7 @@ function Header(props) {
         videosListLength={props.videosListLength}
         currentIndex={props.currentIndex}
         setCurrentIndex={props.setCurrentIndex}
+        galleryBucketParams={props.galleryBucketParams}
       />
 
       <Details mode={props.mode} currentMedia={props.currentMedia} mediaDetails={props.mediaDetails} />
@@ -332,7 +382,7 @@ function Navigation(props) {
   const [navButtonCount, setNavButtonCount] = useState(5);
 
   // One-shot effects to set up adjustments to window length based on viewport width.
-  // [Ref: https://blog.bitsrc.io/using-react-hooks-to-recognize-respond-to-current-viewport-size-c385009005c0]
+  // [https://blog.bitsrc.io/using-react-hooks-to-recognize-respond-to-current-viewport-size-c385009005c0]
   useEffect(() => {  // set initial 'navButtonCount'
     if (window.innerWidth < 480)
       setNavButtonCount(1);
@@ -354,13 +404,24 @@ function Navigation(props) {
     return () => { window.removeEventListener('resize', onResize); }  // clean up
   }, []);
 
-  // Change URL fragment (#) on navigation.
-  // TODO: Change this to use the `useNavigation` hook from react-router-dom instead? [https://reactrouter.com/en/main/hooks/use-navigate]
+  // Effects to trigger whenever the `currentIndex` or `mode` is changed, indicating a user navigation.
   useEffect(() => {
+    // Change URL fragment (#) to match the new mode/index on navigation. [TODO: Generalize <|2|>]
+    // TODO: Change this to use the `useNavigation` hook from react-router-dom instead? [https://reactrouter.com/en/main/hooks/use-navigate]
     if (props.currentIndex.image >= 0 && props.currentIndex.video >= 0) {
-      let h_index = (props.mode === 'images' ? props.currentIndex.image : props.currentIndex.video);
-      window.location.hash = "#" + props.mode + "-" + (Number.parseInt(h_index) + 1);
+      let frag_index = (props.mode === 'images' ? props.currentIndex.image : props.currentIndex.video);
+      let fragment = (props.mode == 'images' ? 'image' : 'video') + (parseInt(frag_index) + 1);
+      window.location.hash = "#" + fragment;
     }
+
+    // Store the new mode/index to remember the user's last position in the current gallery. [TODO: Generalize <|1|>]
+    const bucketCookieValue = {
+      "bucket_name": props.galleryBucketParams['bucketName'],
+      "last_mode": props.mode,
+      "last_image_index": props.currentIndex.image,
+      "last_video_index": props.currentIndex.video
+    };
+    Utils.setCookieAsJSON(Utils.COOKIE_NAME_PREFIX + "last-" + props.galleryBucketParams['id'], bucketCookieValue, 30);  // set cookie for 30 days
   }, [props.currentIndex, props.mode]);
 
 

@@ -21,7 +21,10 @@ graph TD
     G ---> HD(Header)
     G ---> DS(Display)
 
+    HD ----> nt_b(NewtabButton)
+    HD ----> dl_b(DownloadButton)
     HD ----> mn_b(MenuButton)
+
     HD ---> nv(Navigation)
     HD ----> dt(Details)
 
@@ -41,8 +44,11 @@ graph TD
     classDef container color:#fff,fill:#0d1824,stroke:#9ba;
     class GC container;
     
+    classDef section fill:#2c482c,stroke:#86b086;
+    class HD,DS section;
+
     classDef helper fill:#382c2c,stroke:#a88686;
-    class mn_b,nv_b helper;
+    class mn_b,nv_b,nt_b,dl_b helper;
 
     linkStyle 10,11 stroke:#999,stroke-width:0.75px,stroke-dasharray:3,color:MediumTurquoise;
 ```

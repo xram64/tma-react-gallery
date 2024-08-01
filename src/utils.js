@@ -148,13 +148,13 @@ export function parseDetails(datestamp, timestamp, credit) {
   return { date: date_fmt, time: time_fmt, credit: credit_fmt };
 }
 
-export function setCookieAsJSON(cookieName, jsonObj) {
+export function setCookieAsJSON(cookieName, jsonObj, days) {
   // Convert JSON object into an encoded string.
   const jsonString = JSON.stringify(jsonObj);
   const encodedJSONString = encodeURIComponent(jsonString);
   
   // Set a cookie with the encoded JSON string.
-  document.cookie = `${cookieName}=${encodedJSONString};max-age=${86400*365*5}`;  // 5 years (86400 seconds = 1 day)
+  document.cookie = `${cookieName}=${encodedJSONString};max-age=${86400*days}`;  // 86400 seconds = 1 day
 }
 
 export function readCookieAsJSON(cookieName) {
@@ -166,6 +166,16 @@ export function readCookieAsJSON(cookieName) {
   const cookieValue = cookie.split('=')[1];
   const decodedJSONString = decodeURIComponent(cookieValue);
   return JSON.parse(decodedJSONString);
+}
+
+export function refreshCookie(cookieName) {
+  // Refresh the expiry date of a cookie by setting its max-age to the maximum 400 days.
+  setCookieAsJSON(cookieName, readCookieAsJSON(cookieName), 400);
+}
+
+export function deleteCookie(cookieName) {
+  // Override the cookie with a max-age of 0 to mark it for deletion.
+  document.cookie = `${cookieName}=;max-age=0`;
 }
 
 // Prepares an image/video file for download-on-click by fetching the file as a blob, creating an object URL, and clicking a hidden anchor tag to trigger downloading.
@@ -191,3 +201,12 @@ export function downloadMediaViaBlob(mediaURL, mediaFilename) {
     })
     .catch(() => console.error('Could not download the image at ' + mediaURL));
 }
+
+
+
+//┣━━━━━━━━━━━━━━━━━━━━┓
+//┃  Global Constants  ┃
+//┣━━━━━━━━━━━━━━━━━━━━┛
+
+// Each bucket will have its own cookie, as a JSON object. The bucket ID (see `S3BucketParams`) should immediately follow this prefix.
+export const COOKIE_NAME_PREFIX = 'gallery-bucket-';
