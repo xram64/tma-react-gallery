@@ -14,7 +14,7 @@ import imgNewtab from './img/newtab-white.png';
  *    (•) Add (pop-out?) list view for images/videos in bucket.
  *    (•) Add sorting options/controls.
  *    (•) Add an info icon to show tooltip in mouseover (keyboard shortcuts, etc).
- *    (•) Show a loading spinner during loading of each image/video
+ *    (•) Show a loading spinner during loading of each image/video.
  *    (?) Create a "demo" version of the app using copies of all AWS components and a demo bucket with stock images.
  * 
  *  ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————
@@ -632,51 +632,88 @@ function useEventListener(eventName, handler, element = window) {
 // Touch interface horizontal swipe functionality
 //  [Adapted from https://stackoverflow.com/questions/2264072/detect-a-finger-swipe-through-javascript-on-the-iphone-and-android]
 // TODO: Use React Native to do this instead?
-function useHorizonalSwipeNav(updateIndex, minChangeX = 60, maxChangeY = 120) {
-  // Variables to hold the start and end coords for each axis
+function useHorizonalSwipeNav(updateIndex, minChangeX = 150, maxChangeY = 150, debug = false) {
+  // Variables to hold the start and end coords for each axis, and a flag to indicate that more than one touch was registered.
   const [touchCoords, setTouchCoords] = useState({
     startX: null,
     startY: null,
   });
+  const [touchState, setTouchState] = useState({
+    multiTouch: false,    // whether the current touch event has seen more than a single touch
+    initialTouchTime: 0,  // the timestamp of an initial `touchStart` event
+  });
+  const MAX_SWIPE_DURATION_MS = 300;
 
+  
   // Handler callbacks for the touchstart and touchend events
   const touchStartHandler = useCallback(
     (e) => {
-      setTouchCoords({ startX: e.changedTouches[0].screenX, startY: e.changedTouches[0].screenY })
+      setTouchCoords({ startX: e.changedTouches[0].screenX, startY: e.changedTouches[0].screenY });
+
+      // Set `multiTouch` flag if more than one touch is registered at any point during an overall touch event.
+      // This will lock out the `touchEndHandler` from responding to swipe events until the touch event ends.
+      // Also record the timestamp of this `touchStart` event to measure the duration of the touch event later.
+      if (e.touches.length > 1) {
+        setTouchState({ multiTouch: true, initialTouchTime: 0 });
+      }
+      else {
+        setTouchState({ multiTouch: false, initialTouchTime: Date.now() });
+      }
+
     }, []
   );
   const touchEndHandler = useCallback(
     (e) => {
       if (!touchCoords.startX || !touchCoords.startY) {
-        console.log("[DEBUG]: Attempted to handle a swipe with 'null' touch coords.");
+        if (debug) console.log("[DEBUG]: Attempted to handle a swipe with 'null' touch coords.");
         return;
       }
 
+      // If any touch points are still active, this is a multi-touch event which hasn't ended yet.
+      if (e.touches.length > 0) {
+        return;
+      }
+
+      // If no touch points remain and `multiTouch` is `true` here, this is the end of the last touch in a multi-touch event, so skip.
+      // If no touch points remain and `multiTouch` is `false` here, this is a single-touch event, so handle the swipe gesture.
+      if (touchState.multiTouch) {
+        setTouchState({ multiTouch: false, initialTouchTime: 0 });  // Reset `multiTouch` now that the touch event has ended.
+        return;
+      }
+
+      // Check that the single-touch event has finished within the allowed duration.
+      if ((Date.now() - touchState.initialTouchTime) > MAX_SWIPE_DURATION_MS) {
+        if (debug) console.log("[DEBUG]: Swipe gesture took too long and was ignored... | " + `${Date.now()} - ${touchState.initialTouchTime} = ${Date.now() - touchState.initialTouchTime}`);
+        return;
+      }
+      
+      
       // Get current state of touch coords (at 'touchend')
       let endX = e.changedTouches[0].screenX, endY = e.changedTouches[0].screenY;
 
       // Check that the swipe didn't go past the vertical tolerance (maxChangeY)
       // HACK: Should check that the y-coords never go outside of tolerance during the swipe, not just at endpoints?
-      if (Math.abs(endY - touchCoords.startY) > maxChangeY)
-        console.log("[DEBUG]: Checked for swipe -> No swipe (too far on y-axis).");
+      if (Math.abs(endY - touchCoords.startY) > maxChangeY) {
+        if (debug) console.log("[DEBUG]: Checked for swipe -> No swipe (too far on y-axis).");
+      }
 
       // 👈 Swiped left? 👈
       else if (endX < (touchCoords.startX - minChangeX)) {
-        console.log("[DEBUG]: Checked for swipe -> Left swipe (navigating forward).");
+        if (debug) console.log("[DEBUG]: Checked for swipe -> Left swipe (navigating forward).");
         // Swipe left = Move right
         updateIndex(1);
       }
 
       // 👉 Swiped right? 👉
       else if (endX > (touchCoords.startX + minChangeX)) {
-        console.log("[DEBUG]: Checked for swipe -> Right swipe (navigating backward).");
+        if (debug) console.log("[DEBUG]: Checked for swipe -> Right swipe (navigating backward).");
         // Swipe right = Move left
         updateIndex(-1);
       }
 
       // ✖ No swipe ✖
       else {
-        console.log("[DEBUG]: Checked for swipe -> No swipe (not far enough on x-axis).");
+        if (debug) console.log("[DEBUG]: Checked for swipe -> No swipe (not far enough on x-axis).");
       }
 
       // Reset starting touch coords
