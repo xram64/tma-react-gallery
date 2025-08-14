@@ -10,10 +10,10 @@ import './App.css';
 
 /* AWS */
 export const S3BucketParams = [
-  { id: 1, galleryPath: "KushogLake2022", bucketName: "tma-meetup-kushoglake-2022", region: "us-east-1", label: "[2022] Kushog Lake" },
-  { id: 2, galleryPath: "BuckHouse2023", bucketName: "tma-meetup-buckhouse-2023", region: "us-east-1", label: "[2023] Buck House" },
-  { id: 3, galleryPath: "SplashHouse2024", bucketName: "tma-meetup-splashhouse-2024", region: "us-east-1", label: "[2024] Splash House" },
-  { id: 4, galleryPath: "HMSFireball2025", bucketName: "tma-meetup-hmsfireball-2025", region: "us-east-1", label: "[2025] HMS Fireball" },
+  { id: 1, galleryPath: "KushogLake2022", bucketName: "tma-meetup-kushoglake-2022", region: "us-east-1", label_title: "Kushog Lake", label_year: "2022" },
+  { id: 2, galleryPath: "BuckHouse2023", bucketName: "tma-meetup-buckhouse-2023", region: "us-east-1", label_title: "Buck House", label_year: "2023" },
+  { id: 3, galleryPath: "SplashHouse2024", bucketName: "tma-meetup-splashhouse-2024", region: "us-east-1", label_title: "Splash House", label_year: "2024" },
+  { id: 4, galleryPath: "HMSFireball2025", bucketName: "tma-meetup-hmsfireball-2025", region: "us-east-1", label_title: "HMS Fireball", label_year: "2025" },
 ];
 
 //┣━━━━━━━━━━━━━━━━┓
@@ -56,17 +56,18 @@ const router = createBrowserRouter([
 //┣━━━━━━━━━━━━━━━━━━━━━┛
 export function Index() {
   return (
-    // TODO: Add styling for the index page/links
     <div className="Index" style={{ backgroundImage: `url(${imgBG})` }}>
       {/* Basic listing of available gallery S3 buckets. */}
       <h1 className="Index-header">TMA Meetups</h1>
-      <ul className="Index-list">
+      <div className="Index-list">
         {S3BucketParams.map((bucket) => (
-          <li key={bucket.id} className="Index-list-item">
-            <Link className="Index-list-item-link" to={bucket.galleryPath}>{bucket.label}</Link>
-          </li>
+          <Link className="Index-list-item" to={bucket.galleryPath} key={bucket.id}>
+            <button className="Index-list-item-btn">
+              <div className="Index-list-item-year">{bucket.label_year}</div>{bucket.label_title}
+            </button>
+          </Link>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
