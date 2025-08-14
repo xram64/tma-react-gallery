@@ -13,6 +13,7 @@ export const S3BucketParams = [
   { id: 1, galleryPath: "KushogLake2022", bucketName: "tma-meetup-kushoglake-2022", region: "us-east-1", label: "[2022] Kushog Lake" },
   { id: 2, galleryPath: "BuckHouse2023", bucketName: "tma-meetup-buckhouse-2023", region: "us-east-1", label: "[2023] Buck House" },
   { id: 3, galleryPath: "SplashHouse2024", bucketName: "tma-meetup-splashhouse-2024", region: "us-east-1", label: "[2024] Splash House" },
+  { id: 4, galleryPath: "HMSFireball2025", bucketName: "tma-meetup-hmsfireball-2025", region: "us-east-1", label: "[2025] HMS Fireball" },
 ];
 
 //┣━━━━━━━━━━━━━━━━┓
